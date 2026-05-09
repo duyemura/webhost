@@ -1,4 +1,6 @@
 [build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 buildArgs = { NPM_GITHUB_TOKEN = "${{NPM_GITHUB_TOKEN}}" }
 
 [deploy]

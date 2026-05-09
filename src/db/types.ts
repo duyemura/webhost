@@ -4,6 +4,7 @@ export interface Database {
   users: UsersTable;
   sites: SitesTable;
   scripts: ScriptsTable;
+  business_profiles: BusinessProfilesTable;
 }
 
 export interface UsersTable {
@@ -49,3 +50,25 @@ export interface ScriptsTable {
 export type Script = Selectable<ScriptsTable>;
 export type NewScript = Insertable<ScriptsTable>;
 export type ScriptUpdate = Updateable<ScriptsTable>;
+
+export interface BusinessProfilesTable {
+  id: Generated<string>;
+  site_id: string;
+  biz_name: string | null;
+  description: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: Generated<string>;
+  website_url: string | null;
+  hours: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type BusinessProfile = Selectable<BusinessProfilesTable>;
+export type NewBusinessProfile = Insertable<BusinessProfilesTable>;
+export type BusinessProfileUpdate = Updateable<BusinessProfilesTable>;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -47,9 +47,12 @@ import {
   updateScript,
   deleteScript,
   getDomainStatus,
+  getProfile,
+  saveProfile,
   formatBytes,
   type SiteFile,
   type SiteScript,
+  type BusinessProfile,
 } from "../api";
 
 const DOMAIN_RE = /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -437,6 +440,154 @@ function AddScriptDialog({
   );
 }
 
+function BusinessInfoSection({ siteId }: { siteId: string }) {
+  const queryClient = useQueryClient();
+  const [saved, setSaved] = useState(false);
+
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["sites", siteId, "profile"],
+    queryFn: () => getProfile(siteId),
+  });
+
+  const [form, setForm] = useState<BusinessProfile>({});
+  const [formReady, setFormReady] = useState(false);
+
+  useEffect(() => {
+    if (profile && !formReady) {
+      setForm(profile);
+      setFormReady(true);
+    }
+  }, [profile, formReady]);
+
+  const mutation = useMutation({
+    mutationFn: () => saveProfile(siteId, form),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["sites", siteId, "profile"], data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    },
+  });
+
+  function set(field: keyof BusinessProfile, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value || null }));
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    mutation.mutate();
+  }
+
+  if (isLoading) return <Skeleton className="tw-h-40 tw-w-full" />;
+
+  return (
+    <div>
+      <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-1">
+        Business info
+      </h2>
+      <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+        Used to inject structured data, OG tags, and a sitemap into your site automatically.
+      </p>
+      <form onSubmit={handleSubmit} className="tw-space-y-3">
+        <div className="tw-grid tw-grid-cols-2 tw-gap-3">
+          <div className="tw-col-span-2 tw-space-y-1.5">
+            <Label htmlFor="biz-name">Business name</Label>
+            <Input
+              id="biz-name"
+              value={form.biz_name ?? ""}
+              onChange={(e) => set("biz_name", e.target.value)}
+              placeholder="Ironworks CrossFit"
+            />
+          </div>
+          <div className="tw-col-span-2 tw-space-y-1.5">
+            <Label htmlFor="biz-description">Description</Label>
+            <Textarea
+              id="biz-description"
+              value={form.description ?? ""}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="Community CrossFit gym in Austin, TX…"
+              className="tw-min-h-20"
+            />
+          </div>
+          <div className="tw-space-y-1.5">
+            <Label htmlFor="biz-phone">Phone</Label>
+            <Input
+              id="biz-phone"
+              value={form.phone ?? ""}
+              onChange={(e) => set("phone", e.target.value)}
+              placeholder="512-555-0192"
+            />
+          </div>
+          <div className="tw-space-y-1.5">
+            <Label htmlFor="biz-email">Email</Label>
+            <Input
+              id="biz-email"
+              type="email"
+              value={form.email ?? ""}
+              onChange={(e) => set("email", e.target.value)}
+              placeholder="hello@mygym.com"
+            />
+          </div>
+          <div className="tw-col-span-2 tw-space-y-1.5">
+            <Label htmlFor="biz-address">Street address</Label>
+            <Input
+              id="biz-address"
+              value={form.address ?? ""}
+              onChange={(e) => set("address", e.target.value)}
+              placeholder="123 Main St"
+            />
+          </div>
+          <div className="tw-space-y-1.5">
+            <Label htmlFor="biz-city">City</Label>
+            <Input
+              id="biz-city"
+              value={form.city ?? ""}
+              onChange={(e) => set("city", e.target.value)}
+              placeholder="Austin"
+            />
+          </div>
+          <div className="tw-grid tw-grid-cols-2 tw-gap-3">
+            <div className="tw-space-y-1.5">
+              <Label htmlFor="biz-state">State</Label>
+              <Input
+                id="biz-state"
+                value={form.state ?? ""}
+                onChange={(e) => set("state", e.target.value)}
+                placeholder="TX"
+              />
+            </div>
+            <div className="tw-space-y-1.5">
+              <Label htmlFor="biz-zip">ZIP</Label>
+              <Input
+                id="biz-zip"
+                value={form.zip ?? ""}
+                onChange={(e) => set("zip", e.target.value)}
+                placeholder="78701"
+              />
+            </div>
+          </div>
+          <div className="tw-col-span-2 tw-space-y-1.5">
+            <Label htmlFor="biz-hours">Hours</Label>
+            <Input
+              id="biz-hours"
+              value={form.hours ?? ""}
+              onChange={(e) => set("hours", e.target.value)}
+              placeholder="Mon–Fri 6am–8pm, Sat 9am–1pm"
+            />
+          </div>
+        </div>
+        <div className="tw-flex tw-items-center tw-justify-end tw-gap-3">
+          {saved && (
+            <span className="tw-text-sm tw-text-success">Saved.</span>
+          )}
+          <Button type="submit" isSubmitting={mutation.isPending}>
+            Save info
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function UrlBar({ slug, customDomain }: { slug: string; customDomain: string | null }) {
   const [copied, setCopied] = useState(false);
   const primaryUrl = customDomain ? `https://${customDomain}` : `http://${slug}.localhost:3000`;
@@ -643,6 +794,9 @@ export function SiteDetail() {
             cnameTarget={site.cname_target}
           />
         )}
+
+        {/* Business info */}
+        <BusinessInfoSection siteId={id!} />
 
         {/* Upload */}
         <div>

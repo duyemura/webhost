@@ -50,6 +50,25 @@ const sql = `
   -- Phase 3.2: Cloudflare for SaaS custom hostname tracking
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT NOT NULL DEFAULT 'none';
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS cloudflare_hostname_id TEXT;
+
+  -- Phase 4.1: Business profile for SEO/structured data injection
+  CREATE TABLE IF NOT EXISTS business_profiles (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id     UUID NOT NULL UNIQUE REFERENCES sites(id) ON DELETE CASCADE,
+    biz_name    TEXT,
+    description TEXT,
+    phone       TEXT,
+    email       TEXT,
+    address     TEXT,
+    city        TEXT,
+    state       TEXT,
+    zip         TEXT,
+    country     TEXT NOT NULL DEFAULT 'US',
+    website_url TEXT,
+    hours       TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
 `;
 
 const client = new pg.Client(config.db);

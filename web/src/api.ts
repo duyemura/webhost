@@ -172,6 +172,31 @@ export interface DomainStatus {
 export const getDomainStatus = (siteId: string) =>
   apiFetch<DomainStatus>(`/sites/${siteId}/domain-status`);
 
+export interface BusinessProfile {
+  id?: string;
+  site_id?: string;
+  biz_name?: string | null;
+  description?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string;
+  website_url?: string | null;
+  hours?: string | null;
+}
+
+export const getProfile = (siteId: string) =>
+  apiFetch<BusinessProfile>(`/sites/${siteId}/profile`);
+
+export const saveProfile = (siteId: string, body: Omit<BusinessProfile, "id" | "site_id">) =>
+  apiFetch<BusinessProfile>(`/sites/${siteId}/profile`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

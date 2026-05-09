@@ -3,9 +3,9 @@ import fp from "fastify-plugin";
 import path from "node:path";
 import { db } from "../db/client.js";
 import { config } from "../config.js";
-import { getFile } from "../lib/r2.js";
+import { getFile, listFiles } from "../lib/r2.js";
 import { buildHeadSnippets, buildBodySnippets } from "../scripts/index.js";
-import type { Script } from "../db/types.js";
+import type { Script, Site, BusinessProfile } from "../db/types.js";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -43,47 +43,150 @@ function getSiteSlug(host: string, baseDomain: string): string | null {
   return null;
 }
 
-async function serveFile(
-  r2Key: string,
-  reply: any,
-  scripts?: Script[]
-): Promise<boolean> {
-  const file = await getFile(r2Key);
-  if (!file) return false;
-
-  const ext = path.extname(r2Key).toLowerCase();
-  const contentType = MIME_TYPES[ext] ?? file.contentType;
-
-  if (ext === ".html" && scripts?.length) {
-    let html = file.body.toString("utf-8");
-    const head = buildHeadSnippets(scripts);
-    const body = buildBodySnippets(scripts);
-    if (head) html = html.replace("</head>", `${head}\n</head>`);
-    if (body) html = html.replace("</body>", `${body}\n</body>`);
-    reply.header("Content-Type", contentType).send(html);
-  } else {
-    reply.header("Content-Type", contentType).send(file.body);
-  }
-  return true;
+function siteBaseUrl(site: Pick<Site, "slug" | "custom_domain">): string {
+  if (site.custom_domain) return `https://${site.custom_domain}`;
+  return `https://${site.slug}.${config.baseDomain}`;
 }
 
+function buildSeoSnippets(
+  site: Pick<Site, "slug" | "custom_domain">,
+  profile: BusinessProfile | null,
+  html: string,
+  requestPath: string
+): string {
+  const base = siteBaseUrl(site);
+  const pageUrl = requestPath === "/" ? base : `${base}${requestPath}`;
+  const tags: string[] = [];
+
+  function missing(needle: string) {
+    return !html.toLowerCase().includes(needle.toLowerCase());
+  }
+
+  if (missing('rel="canonical"')) {
+    tags.push(`<link rel="canonical" href="${pageUrl}">`);
+  }
+  if (missing('property="og:url"')) {
+    tags.push(`<meta property="og:url" content="${pageUrl}">`);
+  }
+  if (missing('property="og:type"')) {
+    tags.push(`<meta property="og:type" content="website">`);
+  }
+
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const titleText = titleMatch?.[1]?.trim() ?? profile?.biz_name ?? "";
+
+  if (titleText) {
+    if (missing('property="og:title"')) {
+      tags.push(`<meta property="og:title" content="${titleText.replace(/"/g, "&quot;")}">`);
+    }
+    if (missing('name="twitter:title"')) {
+      tags.push(`<meta name="twitter:title" content="${titleText.replace(/"/g, "&quot;")}">`);
+    }
+  }
+
+  if (profile?.description) {
+    if (missing('name="description"')) {
+      tags.push(`<meta name="description" content="${profile.description.replace(/"/g, "&quot;")}">`);
+    }
+    if (missing('property="og:description"')) {
+      tags.push(`<meta property="og:description" content="${profile.description.replace(/"/g, "&quot;")}">`);
+    }
+    if (missing('name="twitter:description"')) {
+      tags.push(`<meta name="twitter:description" content="${profile.description.replace(/"/g, "&quot;")}">`);
+    }
+  }
+
+  if (missing('name="twitter:card"')) {
+    tags.push(`<meta name="twitter:card" content="summary_large_image">`);
+  }
+
+  if (profile?.biz_name) {
+    const ld: Record<string, unknown> = {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      name: profile.biz_name,
+      url: base,
+    };
+    if (profile.description) ld.description = profile.description;
+    if (profile.phone) ld.telephone = profile.phone;
+    if (profile.email) ld.email = profile.email;
+    if (profile.address || profile.city || profile.state || profile.zip) {
+      ld.address = {
+        "@type": "PostalAddress",
+        ...(profile.address ? { streetAddress: profile.address } : {}),
+        ...(profile.city ? { addressLocality: profile.city } : {}),
+        ...(profile.state ? { addressRegion: profile.state } : {}),
+        ...(profile.zip ? { postalCode: profile.zip } : {}),
+        addressCountry: profile.country,
+      };
+    }
+    if (profile.hours) ld.openingHours = profile.hours;
+    if (missing('"LocalBusiness"')) {
+      tags.push(`<script type="application/ld+json">${JSON.stringify(ld)}</script>`);
+    }
+  }
+
+  return tags.join("\n");
+}
+
+async function buildSitemap(
+  site: Pick<Site, "slug" | "custom_domain">,
+  siteId: string
+): Promise<string> {
+  const base = siteBaseUrl(site);
+  const files = await listFiles(`sites/${siteId}/`);
+  const htmlKeys = files.filter((f) => f.key.endsWith(".html")).map((f) => f.key);
+
+  const urls = htmlKeys.map((key) => {
+    const relativePath = key.replace(`sites/${siteId}/`, "");
+    const loc =
+      relativePath === "index.html"
+        ? base
+        : `${base}/${relativePath.replace(/\/index\.html$/, "").replace(/\.html$/, "")}`;
+    return `  <url><loc>${loc}</loc></url>`;
+  });
+
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`,
+    ...urls,
+    `</urlset>`,
+  ].join("\n");
+}
+
+
 async function serveSite(
-  siteId: string,
+  site: Pick<Site, "id" | "slug" | "custom_domain">,
   requestUrl: string,
   reply: any
 ): Promise<void> {
-  const scripts = await db
-    .selectFrom("scripts")
-    .selectAll()
-    .where("site_id", "=", siteId)
-    .where("enabled", "=", true)
-    .orderBy("created_at", "asc")
-    .execute();
-
   const requestPath = requestUrl.split("?")[0];
+
+  // Serve sitemap inline
+  if (requestPath === "/sitemap.xml") {
+    const xml = await buildSitemap(site, site.id);
+    reply.header("Content-Type", "application/xml; charset=utf-8").send(xml);
+    return;
+  }
+
+  const [scripts, profile] = await Promise.all([
+    db
+      .selectFrom("scripts")
+      .selectAll()
+      .where("site_id", "=", site.id)
+      .where("enabled", "=", true)
+      .orderBy("created_at", "asc")
+      .execute(),
+    db
+      .selectFrom("business_profiles")
+      .selectAll()
+      .where("site_id", "=", site.id)
+      .executeTakeFirst(),
+  ]);
+
   const decodedPath = decodeURIComponent(requestPath);
   const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, "").replace(/^\//, "");
-  const base = `sites/${siteId}`;
+  const base = `sites/${site.id}`;
 
   const candidates = [
     `${base}/${safePath}`,
@@ -92,7 +195,24 @@ async function serveSite(
   ];
 
   for (const key of candidates) {
-    if (await serveFile(key, reply, scripts)) return;
+    // Build SEO snippet lazily using the HTML content
+    const file = await getFile(key);
+    if (!file) continue;
+    const ext = path.extname(key).toLowerCase();
+    const contentType = MIME_TYPES[ext] ?? file.contentType;
+    if (ext === ".html") {
+      let html = file.body.toString("utf-8");
+      const seoSnippet = buildSeoSnippets(site, profile ?? null, html, requestPath);
+      const head = buildHeadSnippets(scripts);
+      const body = buildBodySnippets(scripts);
+      if (seoSnippet) html = html.replace("</head>", `${seoSnippet}\n</head>`);
+      if (head) html = html.replace("</head>", `${head}\n</head>`);
+      if (body) html = html.replace("</body>", `${body}\n</body>`);
+      reply.header("Content-Type", contentType).send(html);
+    } else {
+      reply.header("Content-Type", contentType).send(file.body);
+    }
+    return;
   }
 
   reply.header("Content-Type", "text/html; charset=utf-8");
@@ -117,7 +237,7 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
     if (slug && !RESERVED_SLUGS.has(slug)) {
       const site = await db
         .selectFrom("sites")
-        .select(["id", "published_at"])
+        .select(["id", "slug", "custom_domain", "published_at"])
         .where("slug", "=", slug)
         .executeTakeFirst();
 
@@ -127,20 +247,20 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
         return;
       }
 
-      await serveSite(site.id, req.url, reply);
+      await serveSite(site, req.url, reply);
       return;
     }
 
     // Path 2: custom domain match — owner-provided domain points here
     const site = await db
       .selectFrom("sites")
-      .select(["id", "published_at"])
+      .select(["id", "slug", "custom_domain", "published_at"])
       .where("custom_domain", "=", hostname)
       .executeTakeFirst();
 
     if (!site || !site.published_at) return; // not a known site — fall through to API/dashboard
 
-    await serveSite(site.id, req.url, reply);
+    await serveSite(site, req.url, reply);
   });
 };
 

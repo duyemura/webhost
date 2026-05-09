@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import path from "node:path";
-import fs from "node:fs/promises";
 import { db } from "../db/client.js";
 import { config } from "../config.js";
+import { getFile } from "../lib/r2.js";
 import { buildHeadSnippets, buildBodySnippets } from "../scripts/index.js";
 import type { Script } from "../db/types.js";
 
@@ -31,6 +31,8 @@ const MIME_TYPES: Record<string, string> = {
   ".xml": "application/xml",
 };
 
+const RESERVED_SLUGS = new Set(["app", "www", "api", "mail", "admin", "status"]);
+
 function getSiteSlug(host: string, baseDomain: string): string | null {
   const hostname = host.split(":")[0];
   const suffix = `.${baseDomain}`;
@@ -42,29 +44,27 @@ function getSiteSlug(host: string, baseDomain: string): string | null {
 }
 
 async function serveFile(
-  filePath: string,
+  r2Key: string,
   reply: any,
   scripts?: Script[]
 ): Promise<boolean> {
-  try {
-    const content = await fs.readFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
+  const file = await getFile(r2Key);
+  if (!file) return false;
 
-    if (ext === ".html" && scripts?.length) {
-      let html = content.toString("utf-8");
-      const head = buildHeadSnippets(scripts);
-      const body = buildBodySnippets(scripts);
-      if (head) html = html.replace("</head>", `${head}\n</head>`);
-      if (body) html = html.replace("</body>", `${body}\n</body>`);
-      reply.header("Content-Type", contentType).send(html);
-    } else {
-      reply.header("Content-Type", contentType).send(content);
-    }
-    return true;
-  } catch {
-    return false;
+  const ext = path.extname(r2Key).toLowerCase();
+  const contentType = MIME_TYPES[ext] ?? file.contentType;
+
+  if (ext === ".html" && scripts?.length) {
+    let html = file.body.toString("utf-8");
+    const head = buildHeadSnippets(scripts);
+    const body = buildBodySnippets(scripts);
+    if (head) html = html.replace("</head>", `${head}\n</head>`);
+    if (body) html = html.replace("</body>", `${body}\n</body>`);
+    reply.header("Content-Type", contentType).send(html);
+  } else {
+    reply.header("Content-Type", contentType).send(file.body);
   }
+  return true;
 }
 
 async function serveSite(
@@ -80,19 +80,19 @@ async function serveSite(
     .orderBy("created_at", "asc")
     .execute();
 
-  const siteDir = path.join(config.sitesDir, siteId);
   const requestPath = requestUrl.split("?")[0];
   const decodedPath = decodeURIComponent(requestPath);
-  const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, "");
+  const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, "").replace(/^\//, "");
+  const base = `sites/${siteId}`;
 
   const candidates = [
-    path.join(siteDir, safePath),
-    path.join(siteDir, safePath, "index.html"),
-    path.join(siteDir, "index.html"),
+    `${base}/${safePath}`,
+    `${base}/${safePath}/index.html`,
+    `${base}/index.html`,
   ];
 
-  for (const candidate of candidates) {
-    if (await serveFile(candidate, reply, scripts)) return;
+  for (const key of candidates) {
+    if (await serveFile(key, reply, scripts)) return;
   }
 
   reply.header("Content-Type", "text/html; charset=utf-8");
@@ -114,7 +114,7 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
 
     // Path 1: subdomain match — {slug}.localhost (or configured baseDomain)
     const slug = getSiteSlug(hostname, config.baseDomain);
-    if (slug) {
+    if (slug && !RESERVED_SLUGS.has(slug)) {
       const site = await db
         .selectFrom("sites")
         .select(["id", "published_at"])

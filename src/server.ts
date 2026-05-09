@@ -6,7 +6,7 @@ import cookie from "@fastify/cookie";
 import sensible from "@fastify/sensible";
 import multipart from "@fastify/multipart";
 import staticFiles from "@fastify/static";
-import oauth2, { fastifyOauth2 } from "@fastify/oauth2";
+import { fastifyOauth2 } from "@fastify/oauth2";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
@@ -26,7 +26,8 @@ await app.register(cookie);
 await app.register(jwt, { secret: config.jwtSecret });
 await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } });
 
-await app.register(fastifyOauth2, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+await app.register(fastifyOauth2 as any, {
   name: "googleOAuth2",
   scope: ["openid", "email", "profile"],
   credentials: {
@@ -34,7 +35,7 @@ await app.register(fastifyOauth2, {
       id: config.google.clientId,
       secret: config.google.clientSecret,
     },
-    auth: oauth2.GOOGLE_CONFIGURATION,
+    auth: fastifyOauth2.GOOGLE_CONFIGURATION,
   },
   startRedirectPath: "/api/auth/google",
   callbackUri: config.google.callbackUrl,

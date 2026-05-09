@@ -63,11 +63,17 @@ pnpm start        # Serve everything from port 3000 (production mode)
 
 ---
 
-## Cloudflare for SaaS (Phase 3 — not yet implemented)
+## Cloudflare (Phase 3 — account configured, not yet wired into code)
 
-When Phase 3 work begins:
-- Zone: `onboardagent.com` on Cloudflare (free plan is fine)
-- Custom hostname API: `POST /zones/{id}/custom_hostnames` to register customer domains
+**Credentials — non-secret (secrets stay in `.env` only):**
+- Zone ID: `666e54a1fed75236f6c03027d4c35060`
+- Account ID: `f205a9e41cb389ec4f222a1732d442e1`
+- R2 bucket: `webhost-sites`
+- API token env var: `CF_API_TOKEN`
+
+**When Phase 3 work begins:**
+- Custom hostname API: `POST /zones/666e54a1fed75236f6c03027d4c35060/custom_hostnames`
 - Customer instruction: "Add a CNAME from `www.yourdomain.com` to `proxy.onboardagent.com`"
 - SSL: Cloudflare issues DV certs automatically once CNAME validates
 - DB columns needed: `cf_hostname_id`, `custom_domain_status` (enum: `pending | active | failed`)
+- Worker reads `Host` header → looks up site → serves files from R2 bucket `webhost-sites`

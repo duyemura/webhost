@@ -46,26 +46,49 @@ import {
   addScript,
   updateScript,
   deleteScript,
+  getDomainStatus,
   formatBytes,
   type SiteFile,
   type SiteScript,
 } from "../api";
 
 const DOMAIN_RE = /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-const CNAME_TARGET = "sites.localhost"; // replaced with real Cloudflare ingress in Phase 3.2
+
+const DOMAIN_STATUS_BADGE: Record<string, { label: string; variant: "warning" | "success" | "error" | "outline" }> = {
+  pending: { label: "Pending DNS", variant: "warning" },
+  active:  { label: "Active", variant: "success" },
+  failed:  { label: "Failed", variant: "error" },
+};
 
 function CustomDomainSection({
   siteId,
   customDomain,
+  domainStatus,
+  cnameTarget,
 }: {
   siteId: string;
   customDomain: string | null;
+  domainStatus: string;
+  cnameTarget: string;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(!customDomain);
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useQuery({
+    queryKey: ["sites", siteId, "domain-status"],
+    queryFn: () => getDomainStatus(siteId),
+    enabled: !!customDomain && domainStatus === "pending",
+    refetchInterval: 10_000,
+    select: (data) => {
+      if (data.status !== domainStatus) {
+        queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
+      }
+      return data;
+    },
+  });
 
   const saveMutation = useMutation({
     mutationFn: (domain: string) => updateSite(siteId, { custom_domain: domain }),
@@ -99,10 +122,12 @@ function CustomDomainSection({
   }
 
   function copyCname() {
-    navigator.clipboard.writeText(CNAME_TARGET);
+    navigator.clipboard.writeText(cnameTarget);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  const statusBadge = customDomain ? DOMAIN_STATUS_BADGE[domainStatus] : null;
 
   return (
     <div>
@@ -117,6 +142,11 @@ function CustomDomainSection({
             <span className="tw-flex-1 tw-font-mono tw-text-sm tw-text-foreground">
               {customDomain}
             </span>
+            {statusBadge && (
+              <Badge variant={statusBadge.variant} className="tw-shrink-0">
+                {statusBadge.label}
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -128,33 +158,41 @@ function CustomDomainSection({
             </Button>
           </div>
 
-          <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-            <p className="tw-text-xs tw-font-medium tw-text-foreground">
-              Add this DNS record at your registrar:
-            </p>
-            <div className="tw-grid tw-grid-cols-[auto_auto_1fr_auto] tw-gap-x-4 tw-gap-y-1 tw-items-center">
-              <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">Type</span>
-              <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">Name</span>
-              <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">Value</span>
-              <span />
-              <span className="tw-text-xs tw-font-mono tw-text-foreground">CNAME</span>
-              <span className="tw-text-xs tw-font-mono tw-text-foreground">
-                {customDomain.split(".").slice(0, -2).join(".") || "@"}
-              </span>
-              <span className="tw-text-xs tw-font-mono tw-text-foreground tw-truncate">
-                {CNAME_TARGET}
-              </span>
-              <Button variant="ghost" size="icon-sm" onClick={copyCname} title="Copy value">
-                {copied
-                  ? <CheckCheck className="tw-h-3.5 tw-w-3.5 tw-text-success" />
-                  : <Copy className="tw-h-3.5 tw-w-3.5" />
-                }
-              </Button>
+          {domainStatus !== "active" && (
+            <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
+              <p className="tw-text-xs tw-font-medium tw-text-foreground">
+                Add this DNS record at your registrar:
+              </p>
+              <div className="tw-grid tw-grid-cols-[auto_auto_1fr_auto] tw-gap-x-4 tw-gap-y-1 tw-items-center">
+                <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">Type</span>
+                <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">Name</span>
+                <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">Value</span>
+                <span />
+                <span className="tw-text-xs tw-font-mono tw-text-foreground">CNAME</span>
+                <span className="tw-text-xs tw-font-mono tw-text-foreground">
+                  {customDomain.split(".").slice(0, -2).join(".") || "@"}
+                </span>
+                <span className="tw-text-xs tw-font-mono tw-text-foreground tw-truncate">
+                  {cnameTarget}
+                </span>
+                <Button variant="ghost" size="icon-sm" onClick={copyCname} title="Copy value">
+                  {copied
+                    ? <CheckCheck className="tw-h-3.5 tw-w-3.5 tw-text-success" />
+                    : <Copy className="tw-h-3.5 tw-w-3.5" />
+                  }
+                </Button>
+              </div>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                DNS changes can take up to 48 hours to propagate.
+              </p>
             </div>
-            <p className="tw-text-xs tw-text-muted-foreground">
-              DNS changes can take up to 48 hours to propagate.
+          )}
+
+          {domainStatus === "failed" && (
+            <p className="tw-text-xs tw-text-error">
+              SSL provisioning failed. Remove the domain and try again, or check your DNS settings.
             </p>
-          </div>
+          )}
         </div>
       ) : editing ? (
         <form onSubmit={handleSave} className="tw-flex tw-gap-2">
@@ -598,7 +636,12 @@ export function SiteDetail() {
 
         {/* Custom domain */}
         {isPublished && (
-          <CustomDomainSection siteId={id!} customDomain={site.custom_domain} />
+          <CustomDomainSection
+            siteId={id!}
+            customDomain={site.custom_domain}
+            domainStatus={site.domain_status}
+            cnameTarget={site.cname_target}
+          />
         )}
 
         {/* Upload */}

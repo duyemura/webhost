@@ -46,6 +46,10 @@ const sql = `
   );
 
   CREATE INDEX IF NOT EXISTS scripts_site_id_idx ON scripts(site_id);
+
+  -- Phase 3.2: Cloudflare for SaaS custom hostname tracking
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT NOT NULL DEFAULT 'none';
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS cloudflare_hostname_id TEXT;
 `;
 
 const client = new pg.Client(config.db);

@@ -11,6 +11,9 @@ export interface Site {
   name: string;
   slug: string;
   custom_domain: string | null;
+  domain_status: string;
+  cloudflare_hostname_id: string | null;
+  cname_target: string;
   created_at: string;
   updated_at: string;
   published_at: string | null;
@@ -160,6 +163,14 @@ export const updateScript = (siteId: string, scriptId: string, body: UpdateScrip
   });
 export const deleteScript = (siteId: string, scriptId: string) =>
   apiFetch<void>(`/sites/${siteId}/scripts/${scriptId}`, { method: "DELETE" });
+
+export interface DomainStatus {
+  status: string;
+  ssl_status: string;
+}
+
+export const getDomainStatus = (siteId: string) =>
+  apiFetch<DomainStatus>(`/sites/${siteId}/domain-status`);
 
 export function slugify(text: string): string {
   return text

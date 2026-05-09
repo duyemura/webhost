@@ -20,6 +20,8 @@ export interface SitesTable {
   name: string;
   slug: string;
   custom_domain: string | null;
+  domain_status: Generated<string>;
+  cloudflare_hostname_id: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
   published_at: Date | null;

@@ -1,31 +1,56 @@
 import type { FastifyPluginAsync } from "fastify";
 import path from "node:path";
-import fs from "node:fs/promises";
 import AdmZip from "adm-zip";
 import { db } from "../db/client.js";
-import { config } from "../config.js";
+import { putFile, deleteFile, listFiles } from "../lib/r2.js";
+
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".mjs": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain",
+  ".xml": "application/xml",
+};
+
+function contentTypeFor(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  return MIME_TYPES[ext] ?? "application/octet-stream";
+}
 
 const BLOCKED_NAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"]);
 const BLOCKED_PREFIXES = ["__MACOSX/", ".git/"];
 
 function isSafeEntryPath(entryPath: string): boolean {
-  // Reject absolute paths and traversal attempts
   if (path.isAbsolute(entryPath)) return false;
   const normalized = path.normalize(entryPath);
   if (normalized.startsWith("..")) return false;
-
   const basename = path.basename(normalized);
   if (BLOCKED_NAMES.has(basename)) return false;
   if (basename.startsWith(".") && basename !== ".well-known") return false;
   if (BLOCKED_PREFIXES.some((p) => entryPath.startsWith(p))) return false;
-
   return true;
 }
 
 export const uploadRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("onRequest", app.authenticate);
 
-  // Upload a zip — extracts all files into the site directory
+  // Upload a zip — extracts all files into R2
   app.post("/api/sites/:id/upload", async (req, reply) => {
     const { id } = req.params as { id: string };
 
@@ -55,27 +80,19 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest("The uploaded file is not a valid zip archive.");
     }
 
-    const siteDir = path.join(config.sitesDir, id);
-    await fs.mkdir(siteDir, { recursive: true });
-
     const entries = zip.getEntries();
     let extracted = 0;
 
     for (const entry of entries) {
       if (entry.isDirectory) continue;
-
       const entryPath = entry.entryName;
       if (!isSafeEntryPath(entryPath)) continue;
 
-      const destPath = path.join(siteDir, path.normalize(entryPath));
+      const normalizedPath = path.normalize(entryPath);
+      if (normalizedPath.startsWith("..")) continue;
 
-      // Ensure destination is still inside siteDir after normalization
-      if (!destPath.startsWith(siteDir + path.sep) && destPath !== siteDir) {
-        continue;
-      }
-
-      await fs.mkdir(path.dirname(destPath), { recursive: true });
-      await fs.writeFile(destPath, entry.getData());
+      const key = `sites/${id}/${normalizedPath}`;
+      await putFile(key, entry.getData(), contentTypeFor(normalizedPath));
       extracted++;
     }
 
@@ -83,7 +100,6 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest("The zip contained no usable files.");
     }
 
-    // Mark as published on first upload
     if (!site.published_at) {
       await db
         .updateTable("sites")
@@ -127,16 +143,9 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest("Invalid filename.");
     }
 
-    const siteDir = path.join(config.sitesDir, id);
-    const destPath = path.join(siteDir, data.filename);
-
-    if (!destPath.startsWith(siteDir + path.sep)) {
-      return reply.badRequest("Invalid file path.");
-    }
-
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
     const buffer = await data.toBuffer();
-    await fs.writeFile(destPath, buffer);
+    const key = `sites/${id}/${data.filename}`;
+    await putFile(key, buffer, contentTypeFor(data.filename));
 
     await db
       .updateTable("sites")
@@ -167,20 +176,30 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest("Invalid file path.");
     }
 
-    const siteDir = path.join(config.sitesDir, id);
-    const targetPath = path.join(siteDir, path.normalize(filePath));
-
-    if (!targetPath.startsWith(siteDir + path.sep)) {
-      return reply.badRequest("Invalid file path.");
-    }
-
-    try {
-      await fs.unlink(targetPath);
-    } catch (err: any) {
-      if (err.code === "ENOENT") return reply.notFound();
-      throw err;
-    }
-
+    await deleteFile(`sites/${id}/${path.normalize(filePath)}`);
     return reply.status(204).send();
+  });
+
+  // List files in a site
+  app.get("/api/sites/:id/files", async (req, reply) => {
+    const { id } = req.params as { id: string };
+
+    const site = await db
+      .selectFrom("sites")
+      .select("id")
+      .where("id", "=", id)
+      .where("user_id", "=", req.user.sub)
+      .executeTakeFirst();
+
+    if (!site) return reply.notFound();
+
+    const objects = await listFiles(`sites/${id}/`);
+    const prefix = `sites/${id}/`;
+    const files = objects.map((o) => ({
+      path: o.key.slice(prefix.length),
+      size: o.size,
+    }));
+
+    return { files };
   });
 };

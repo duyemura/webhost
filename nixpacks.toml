@@ -1,8 +1,13 @@
 [phases.setup]
 nixPkgs = ["nodejs_22"]
+cmds = [
+  "npm install -g pnpm@9",
+  "echo \"//npm.pkg.github.com/:_authToken=$NPM_GITHUB_TOKEN\" >> ~/.npmrc",
+  "echo '@pushpress:registry=https://npm.pkg.github.com' >> ~/.npmrc",
+]
 
 [phases.install]
-cmds = ["npm install -g pnpm && pnpm install --frozen-lockfile -r"]
+cmds = ["pnpm install --frozen-lockfile -r"]
 
 [phases.build]
 cmds = ["pnpm build && pnpm build:web"]

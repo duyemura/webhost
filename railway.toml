@@ -1,5 +1,5 @@
 [build]
-buildCommand = "pnpm install --frozen-lockfile && pnpm build && pnpm build:web"
+buildCommand = "pnpm install --frozen-lockfile -r && pnpm build && pnpm build:web"
 
 [deploy]
 startCommand = "node dist/server.js"

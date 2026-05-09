@@ -1,3 +1,6 @@
+[build]
+buildArgs = { NPM_GITHUB_TOKEN = "${{NPM_GITHUB_TOKEN}}" }
+
 [deploy]
 startCommand = "node dist/server.js"
 healthcheckPath = "/api/health"

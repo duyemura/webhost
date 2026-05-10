@@ -34,13 +34,11 @@ const SECTION_SELECTORS = [
   "[class*='offer']", "[class*='program']", "[class*='service']",
 ];
 
-const FETCH_OPTS = {
-  headers: {
-    "User-Agent": "Mozilla/5.0 (compatible; WebsiteImporter/1.0)",
-    "Accept": "text/html,application/xhtml+xml",
-  },
-  signal: AbortSignal.timeout(10_000),
-} as const;
+const FETCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.5",
+};
 
 function slugFromPath(pathname: string): string {
   const clean = pathname.replace(/\/$/, "").replace(/^\//, "");
@@ -133,8 +131,14 @@ function extractNavLinks(html: string, baseUrl: URL): string[] {
 
 async function fetchPage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, FETCH_OPTS);
+    const res = await fetch(url, {
+      headers: FETCH_HEADERS,
+      redirect: "follow",
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("text/html") && !ct.includes("text/plain")) return null;
     return await res.text();
   } catch {
     return null;
@@ -144,8 +148,21 @@ async function fetchPage(url: string): Promise<string | null> {
 export async function scrapeWebsite(rawUrl: string): Promise<ScrapeResult> {
   const baseUrl = new URL(rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`);
 
-  const homeHtml = await fetchPage(baseUrl.href);
-  if (!homeHtml) throw new Error(`Could not fetch ${baseUrl.href} — check the URL is publicly accessible.`);
+  let homeHtml = await fetchPage(baseUrl.href);
+
+  // Try www. prefix if bare domain failed
+  if (!homeHtml && !baseUrl.hostname.startsWith("www.")) {
+    const wwwUrl = new URL(baseUrl.href);
+    wwwUrl.hostname = `www.${wwwUrl.hostname}`;
+    homeHtml = await fetchPage(wwwUrl.href);
+    if (homeHtml) baseUrl.hostname = wwwUrl.hostname;
+  }
+
+  if (!homeHtml) {
+    throw new Error(
+      `Could not fetch ${baseUrl.href}. The site may block automated requests, require a login, or be behind a firewall. Try a different URL.`
+    );
+  }
 
   const $ = load(homeHtml);
   const site_name = $("title").first().text().replace(/\s+/g, " ").trim().split(/[-|]/)[0].trim();

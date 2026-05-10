@@ -30,14 +30,13 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef }: Bl
   const [newPageTitle, setNewPageTitle] = useState("");
   const [pageError, setPageError] = useState<string | null>(null);
 
-  const dirty =
-    JSON.stringify(localSpec) !== JSON.stringify(savedSpec) ||
-    JSON.stringify(localTheme) !== JSON.stringify(savedTheme);
+  // spec/theme helpers always return new references on real changes — reference equality is sufficient
+  const dirty = localSpec !== savedSpec || localTheme !== savedTheme;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const specChanged = JSON.stringify(localSpec) !== JSON.stringify(savedSpec);
-      const themeChanged = JSON.stringify(localTheme) !== JSON.stringify(savedTheme);
+      const specChanged = localSpec !== savedSpec;
+      const themeChanged = localTheme !== savedTheme;
       if (specChanged) await updateSpec(siteId, localSpec);
       if (themeChanged) await updateTheme(siteId, localTheme);
     },
@@ -70,8 +69,8 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef }: Bl
       const newSpec = removePage(localSpec, slug);
       setLocalSpec(newSpec);
       if (activePage === slug) setActivePage("index");
-    } catch {
-      // index page or last page — silently ignore
+    } catch (e) {
+      setPageError((e as Error).message);
     }
   }
 
@@ -124,7 +123,7 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef }: Bl
           <div className="tw-flex tw-items-center tw-gap-1.5 tw-border tw-border-border tw-rounded tw-px-2 tw-py-1">
             <input
               autoFocus
-              placeholder="slug"
+              placeholder="Slug"
               value={newPageSlug}
               onChange={(e) => setNewPageSlug(e.target.value)}
               className="tw-text-sm tw-w-20 tw-bg-transparent tw-outline-none tw-text-foreground"
@@ -137,7 +136,7 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef }: Bl
               onKeyDown={(e) => { if (e.key === "Enter") handleAddPage(); if (e.key === "Escape") setAddingPage(false); }}
               className="tw-text-sm tw-w-24 tw-bg-transparent tw-outline-none tw-text-foreground"
             />
-            <button onClick={handleAddPage} className="tw-text-xs tw-text-primary hover:tw-underline">Add</button>
+            <button onClick={handleAddPage} className="tw-text-xs tw-text-primary hover:tw-underline">Add page</button>
             <button onClick={() => setAddingPage(false)} className="tw-text-xs tw-text-muted-foreground hover:tw-underline">Cancel</button>
           </div>
         )}

@@ -119,8 +119,13 @@ export function ThemeEditor({ theme, onChange }: ThemeEditorProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["none", "uppercase", "lowercase", "capitalize"].map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {[
+                  { value: "none", label: "None" },
+                  { value: "uppercase", label: "Uppercase" },
+                  { value: "lowercase", label: "Lowercase" },
+                  { value: "capitalize", label: "Capitalize" },
+                ].map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -135,8 +140,12 @@ export function ThemeEditor({ theme, onChange }: ThemeEditorProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["tight", "normal", "wide"].map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {[
+                  { value: "tight", label: "Tight" },
+                  { value: "normal", label: "Normal" },
+                  { value: "wide", label: "Wide" },
+                ].map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -3,6 +3,19 @@ import { Input, Textarea, Switch, Label, Button } from "@pushpress/pushpress-ui"
 import { inferFieldType } from "../../lib/editor";
 import type { SiteSection } from "../../api";
 
+const ACRONYMS = new Set(["url", "html", "api", "sms", "csv", "id"]);
+
+function toFieldLabel(key: string): string {
+  const words = key.split("_");
+  return words
+    .map((word, i) => {
+      const upper = word.toUpperCase();
+      if (ACRONYMS.has(word)) return upper;
+      return i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+    })
+    .join(" ");
+}
+
 interface BlockFormProps {
   section: SiteSection;
   onChange: (fields: Record<string, unknown>) => void;
@@ -41,7 +54,7 @@ export function BlockForm({ section, onChange }: BlockFormProps) {
       {fields.map(([key]) => {
         const value = draft[key];
         const inputType = inferFieldType(key, section[key]);
-        const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        const label = toFieldLabel(key);
 
         return (
           <div key={key} className="tw-space-y-1">

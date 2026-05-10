@@ -4,7 +4,6 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import cookie from "@fastify/cookie";
 import sensible from "@fastify/sensible";
-import multipart from "@fastify/multipart";
 import staticFiles from "@fastify/static";
 import { fastifyOauth2 } from "@fastify/oauth2";
 import path from "node:path";
@@ -12,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { sitesRoutes } from "./routes/sites.js";
-import { uploadRoutes } from "./routes/upload.js";
 import { scriptsRoutes } from "./routes/scripts.js";
 import { profileRoutes } from "./routes/profile.js";
 import { publishRoutes } from "./routes/publish.js";
@@ -28,8 +26,6 @@ await app.register(cors, { origin: true, credentials: true });
 await app.register(sensible);
 await app.register(cookie);
 await app.register(jwt, { secret: config.jwtSecret });
-await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024 } });
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 await app.register(fastifyOauth2 as any, {
   name: "googleOAuth2",
@@ -64,7 +60,6 @@ app.get("/api/health", async () => ({ ok: true }));
 
 await app.register(authRoutes);
 await app.register(sitesRoutes);
-await app.register(uploadRoutes);
 await app.register(scriptsRoutes);
 await app.register(profileRoutes);
 await app.register(publishRoutes);

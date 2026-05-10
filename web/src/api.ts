@@ -24,16 +24,6 @@ export interface Site {
   generation_prompt: string | null;
 }
 
-export interface SiteFile {
-  path: string;
-  size: number;
-}
-
-export interface UploadResult {
-  filesExtracted: number;
-  site: Site;
-}
-
 function getToken(): string | null {
   return localStorage.getItem("token");
 }
@@ -76,32 +66,6 @@ export async function apiFetch<T>(
   return res.json();
 }
 
-// Separate helper for multipart uploads (no Content-Type header — browser sets it)
-export async function apiUpload<T>(path: string, body: FormData): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`/api${path}`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body,
-  });
-
-  if (res.status === 401) {
-    handleUnauthorized();
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const text = await res.text();
-    let message = text;
-    try {
-      message = JSON.parse(text)?.message ?? text;
-    } catch {}
-    throw new Error(message);
-  }
-
-  return res.json();
-}
-
 // Auth
 export const getMe = () => apiFetch<User>("/auth/me");
 
@@ -118,20 +82,6 @@ export const publishSite = (id: string) =>
   apiFetch<Site>(`/sites/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
 export const unpublishSite = (id: string) =>
   apiFetch<Site>(`/sites/${id}/publish`, { method: "DELETE" });
-
-// Files
-export const getSiteFiles = (id: string) =>
-  apiFetch<{ files: SiteFile[] }>(`/sites/${id}/files`);
-export const uploadZip = (id: string, file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return apiUpload<UploadResult>(`/sites/${id}/upload`, form);
-};
-export const deleteFile = (siteId: string, filePath: string) =>
-  apiFetch<void>(
-    `/sites/${siteId}/files?filePath=${encodeURIComponent(filePath)}`,
-    { method: "DELETE" }
-  );
 
 // Scripts
 export interface SiteScript {
@@ -280,8 +230,3 @@ export function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}

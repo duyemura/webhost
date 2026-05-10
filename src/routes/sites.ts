@@ -165,7 +165,6 @@ export const sitesRoutes: FastifyPluginAsync = async (app) => {
       site.cloudflare_hostname_id
         ? deprovisionHostname(site.cloudflare_hostname_id).catch(() => {})
         : Promise.resolve(),
-      deletePrefix(`sites/${id}/`),
       deletePrefix(`live/${id}/`),
     ]);
 

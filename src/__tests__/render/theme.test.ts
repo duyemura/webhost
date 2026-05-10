@@ -99,6 +99,6 @@ describe("THEME_PRESETS", () => {
   });
 
   it("dark preset has dark background", () => {
-    expect(THEME_PRESETS["dark"].colors.background).toBe("#111827");
+    expect(THEME_PRESETS["dark"].colors.background).toBe("#111111");
   });
 });

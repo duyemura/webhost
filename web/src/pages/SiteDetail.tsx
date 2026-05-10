@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Copy,
   ExternalLink,
   Trash2,
-  FileText,
   CheckCheck,
   Plus,
   Code2,
@@ -28,8 +27,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogTrigger,
-  Dropzone,
-  DropzoneEmptyState,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -38,7 +35,6 @@ import {
   Input,
   Label,
   Textarea,
-  Checkbox,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -47,9 +43,6 @@ import {
 import { useSetHeader } from "../components/AppLayout";
 import {
   getSite,
-  getSiteFiles,
-  uploadZip,
-  deleteFile,
   deleteSite,
   updateSite,
   publishSite,
@@ -61,12 +54,10 @@ import {
   getProfile,
   saveProfile,
   generateSite,
-  formatBytes,
   THEME_PRESETS,
   THEME_PRESET_COLORS,
   THEME_PRESET_LABELS,
   type ThemePreset,
-  type SiteFile,
   type SiteScript,
   type BusinessProfile,
   type SiteSpec,
@@ -870,90 +861,11 @@ function UrlBar({ slug, customDomain }: { slug: string; customDomain: string | n
   );
 }
 
-function FileRow({
-  file,
-  siteId,
-  selected,
-  onSelect,
-  onDeleted,
-}: {
-  file: SiteFile;
-  siteId: string;
-  selected: boolean;
-  onSelect: (checked: boolean) => void;
-  onDeleted: () => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: () => deleteFile(siteId, file.path),
-    onSuccess: () => {
-      setConfirming(false);
-      onDeleted();
-    },
-    onError: (err: Error) => setDeleteError(err.message),
-  });
-
-  return (
-    <div className="tw-flex tw-items-center tw-gap-3 tw-py-2.5 tw-border-b tw-border-border last:tw-border-0">
-      <Checkbox
-        checked={selected}
-        onCheckedChange={(v) => onSelect(!!v)}
-        className="tw-shrink-0"
-      />
-      <FileText className="tw-h-4 tw-w-4 tw-text-muted-foreground tw-shrink-0" />
-      <span className="tw-flex-1 tw-font-mono tw-text-sm tw-text-foreground tw-truncate">
-        {file.path}
-      </span>
-      <span className="tw-text-xs tw-text-muted-foreground tw-shrink-0">
-        {formatBytes(file.size)}
-      </span>
-      <AlertDialog open={confirming} onOpenChange={(o) => { setConfirming(o); if (!o) setDeleteError(null); }}>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="tw-shrink-0 tw-text-muted-foreground hover:tw-text-error"
-          >
-            <Trash2 className="tw-h-4 tw-w-4" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogTitle>Delete file?</AlertDialogTitle>
-          <AlertDialogDescription>
-            <span className="tw-font-mono">{file.path}</span> will be permanently removed from your site.
-          </AlertDialogDescription>
-          {deleteError && (
-            <p className="tw-text-sm tw-text-error">{deleteError}</p>
-          )}
-          <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-            <AlertDialogCancel disabled={mutation.isPending}>Cancel</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              isSubmitting={mutation.isPending}
-              onClick={() => mutation.mutate()}
-            >
-              Delete file
-            </Button>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
 export function SiteDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [addScriptOpen, setAddScriptOpen] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [bulkConfirming, setBulkConfirming] = useState(false);
-  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
   const [genPrompt, setGenPrompt] = useState("");
@@ -969,12 +881,6 @@ export function SiteDetail() {
     enabled: !!id,
   });
 
-  const { data: filesData, isLoading: filesLoading } = useQuery({
-    queryKey: ["sites", id, "files"],
-    queryFn: () => getSiteFiles(id!),
-    enabled: !!id,
-  });
-
   const { data: scriptsData } = useQuery({
     queryKey: ["sites", id, "scripts"],
     queryFn: () => getScripts(id!),
@@ -984,22 +890,6 @@ export function SiteDetail() {
   function refreshPreview() {
     setPreviewKey((k) => k + 1);
   }
-
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadZip(id!, file),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["sites", id] });
-      queryClient.invalidateQueries({ queryKey: ["sites", id, "files"] });
-      queryClient.invalidateQueries({ queryKey: ["sites"] });
-      setUploadError(null);
-      setUploadSuccess(`${result.filesExtracted} files uploaded successfully.`);
-      setTimeout(() => setUploadSuccess(null), 4000);
-      refreshPreview();
-    },
-    onError: (err: Error) => {
-      setUploadError(err.message);
-    },
-  });
 
   const deleteSiteMutation = useMutation({
     mutationFn: () => deleteSite(id!),
@@ -1025,37 +915,7 @@ export function SiteDetail() {
     },
   });
 
-  function handleDrop(files: File[]) {
-    const file = files[0];
-    if (!file) return;
-    setUploadError(null);
-    setUploadSuccess(null);
-    uploadMutation.mutate(file);
-  }
-
-  const invalidateFiles = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["sites", id, "files"] });
-  }, [queryClient, id]);
-
-  async function handleBulkDelete() {
-    setBulkDeleting(true);
-    setBulkDeleteError(null);
-    const results = await Promise.allSettled(
-      [...selectedFiles].map((path) => deleteFile(id!, path))
-    );
-    const failed = results.filter((r) => r.status === "rejected").length;
-    setBulkDeleting(false);
-    if (failed > 0) {
-      setBulkDeleteError(`${failed} file${failed !== 1 ? "s" : ""} could not be deleted. Refresh and try again.`);
-    } else {
-      setSelectedFiles(new Set());
-      setBulkConfirming(false);
-    }
-    invalidateFiles();
-  }
-
   const isPublished = !!site?.published_at;
-  const files: SiteFile[] = filesData?.files ?? [];
   const scripts: SiteScript[] = scriptsData?.scripts ?? [];
   const previewUrl = site ? `http://${site.slug}.localhost:3000` : "";
 
@@ -1073,9 +933,9 @@ export function SiteDetail() {
             <ArrowLeft className="tw-h-4 tw-w-4" />
           </Button>
           <span className="tw-font-semibold tw-text-foreground tw-truncate">{site.name}</span>
-          <Badge variant="outline" className="tw-shrink-0 tw-text-xs">
-            {site.spec ? "AI site" : "Uploaded"}
-          </Badge>
+          {!!site.spec && (
+            <Badge variant="outline" className="tw-shrink-0 tw-text-xs">AI site</Badge>
+          )}
         </div>
         <div className="tw-flex tw-items-center tw-gap-2 tw-shrink-0">
           {isPublished && (
@@ -1154,7 +1014,7 @@ export function SiteDetail() {
                   <AlertDialogContent>
                     <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
+                      This will permanently delete the site and all its content. This cannot be undone.
                     </AlertDialogDescription>
                     <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
                       <AlertDialogCancel disabled={deleteSiteMutation.isPending}>Cancel</AlertDialogCancel>
@@ -1225,124 +1085,6 @@ export function SiteDetail() {
                     cnameTarget={site.cname_target}
                   />
                 </>
-              )}
-
-              <div>
-                <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
-                  {isPublished ? "Replace files" : "Upload your site"}
-                </h2>
-                <p className="tw-text-sm tw-text-muted-foreground tw-mb-4">
-                  Export your AI-generated site as a zip file and drop it here.
-                  {isPublished && " Uploading a new zip will merge files — existing files are kept unless overwritten."}
-                </p>
-                <Dropzone
-                  accept={{
-                    "application/zip": [".zip"],
-                    "application/x-zip-compressed": [".zip"],
-                    "application/octet-stream": [".zip"],
-                  }}
-                  maxFiles={1}
-                  disabled={uploadMutation.isPending}
-                  onChange={handleDrop}
-                >
-                  <DropzoneEmptyState />
-                </Dropzone>
-                {uploadMutation.isPending && (
-                  <p className="tw-text-sm tw-text-muted-foreground tw-mt-2">
-                    Uploading and extracting files…
-                  </p>
-                )}
-                {uploadSuccess && (
-                  <p className="tw-text-sm tw-text-success tw-mt-2">{uploadSuccess}</p>
-                )}
-                {uploadError && (
-                  <p className="tw-text-sm tw-text-error tw-mt-2">{uploadError}</p>
-                )}
-              </div>
-
-              {files.length > 0 && (
-                <div>
-                  <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-                    <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
-                      Files{" "}
-                      <span className="tw-text-muted-foreground tw-font-normal tw-text-sm">
-                        ({files.length})
-                      </span>
-                    </h2>
-                    {selectedFiles.size > 0 && (
-                      <AlertDialog open={bulkConfirming} onOpenChange={(o) => { setBulkConfirming(o); if (!o) setBulkDeleteError(null); }}>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            <Trash2 className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
-                            Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogTitle>Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently remove {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""} from your site. This cannot be undone.
-                          </AlertDialogDescription>
-                          {bulkDeleteError && (
-                            <p className="tw-text-sm tw-text-error tw-mt-2">{bulkDeleteError}</p>
-                          )}
-                          <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-                            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
-                            <Button
-                              variant="destructive"
-                              isSubmitting={bulkDeleting}
-                              onClick={handleBulkDelete}
-                            >
-                              Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
-                            </Button>
-                          </div>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </div>
-                  <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
-                    {filesLoading ? (
-                      <div className="tw-py-4 tw-space-y-2">
-                        <Skeleton className="tw-h-4 tw-w-full" />
-                        <Skeleton className="tw-h-4 tw-w-3/4" />
-                      </div>
-                    ) : (
-                      <>
-                        {files.length > 1 && (
-                          <div className="tw-flex tw-items-center tw-gap-3 tw-py-2 tw-border-b tw-border-border">
-                            <Checkbox
-                              checked={selectedFiles.size === files.length}
-                              onCheckedChange={(v) =>
-                                setSelectedFiles(v ? new Set(files.map((f) => f.path)) : new Set())
-                              }
-                              className="tw-shrink-0"
-                            />
-                            <span className="tw-text-xs tw-text-muted-foreground">
-                              {selectedFiles.size === 0
-                                ? "Select all"
-                                : `${selectedFiles.size} of ${files.length} selected`}
-                            </span>
-                          </div>
-                        )}
-                        {files.map((file) => (
-                          <FileRow
-                            key={file.path}
-                            file={file}
-                            siteId={id!}
-                            selected={selectedFiles.has(file.path)}
-                            onSelect={(checked) => {
-                              setSelectedFiles((prev) => {
-                                const next = new Set(prev);
-                                checked ? next.add(file.path) : next.delete(file.path);
-                                return next;
-                              });
-                            }}
-                            onDeleted={invalidateFiles}
-                          />
-                        ))}
-                      </>
-                    )}
-                  </div>
-                </div>
               )}
 
               <div className="tw-space-y-4">
@@ -1457,7 +1199,7 @@ export function SiteDetail() {
             <div>
               <PanelRight className="tw-h-8 tw-w-8 tw-text-muted-foreground tw-mx-auto tw-mb-3" />
               <p className="tw-text-sm tw-text-muted-foreground">
-                Upload a zip file to see a live preview here.
+                Generate a site using the AI tab to see a live preview here.
               </p>
             </div>
           </div>

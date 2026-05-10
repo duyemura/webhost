@@ -5,6 +5,21 @@ import { BlockForm } from "./BlockForm";
 import { moveSection, removeSection, updateSection } from "../../lib/spec";
 import type { SiteSection, SiteSpec } from "../../api";
 
+// Fields that should always appear for a block type, even if missing from an older spec
+const BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
+  hero: { image_url: "", background_video_url: "" },
+};
+
+function withDefaults(section: SiteSection): SiteSection {
+  const defaults = BLOCK_DEFAULTS[section.type];
+  if (!defaults) return section;
+  const merged: SiteSection = { ...section };
+  for (const [key, val] of Object.entries(defaults)) {
+    if (!(key in merged)) merged[key as keyof SiteSection] = val as never;
+  }
+  return merged;
+}
+
 interface BlockListProps {
   siteId: string;
   spec: SiteSpec;
@@ -100,7 +115,7 @@ export function BlockList({ siteId, spec, pageSlug, onChange }: BlockListProps) 
               <div className="tw-px-3 tw-pb-3">
                 <BlockForm
                   siteId={siteId}
-                  section={section}
+                  section={withDefaults(section)}
                   onChange={(fields) =>
                     onChange(updateSection(spec, pageSlug, section.id, fields))
                   }

@@ -1,0 +1,36 @@
+import { registry } from "./registry.js";
+import { heroBlock } from "./hero/schema.js";
+import { featuresBlock } from "./features/schema.js";
+import { aboutBlock } from "./about/schema.js";
+import { programsBlock } from "./programs/schema.js";
+import { pricingBlock } from "./pricing/schema.js";
+import { testimonialsBlock } from "./testimonials/schema.js";
+import { reviewsBlock } from "./reviews/schema.js";
+import { faqBlock } from "./faq/schema.js";
+import { teamBlock } from "./team/schema.js";
+import { galleryBlock } from "./gallery/schema.js";
+import { statsBlock } from "./stats/schema.js";
+import { videoBlock } from "./video/schema.js";
+import { introOfferBlock } from "./intro-offer/schema.js";
+import { mapLocationBlock } from "./map-location/schema.js";
+import { richTextBlock } from "./rich-text/schema.js";
+import { ctaBannerBlock } from "./cta-banner/schema.js";
+
+registry.register(heroBlock);
+registry.register(featuresBlock);
+registry.register(aboutBlock);
+registry.register(programsBlock);
+registry.register(pricingBlock);
+registry.register(testimonialsBlock);
+registry.register(reviewsBlock);
+registry.register(faqBlock);
+registry.register(teamBlock);
+registry.register(galleryBlock);
+registry.register(statsBlock);
+registry.register(videoBlock);
+registry.register(introOfferBlock);
+registry.register(mapLocationBlock);
+registry.register(richTextBlock);
+registry.register(ctaBannerBlock);
+
+export { registry };

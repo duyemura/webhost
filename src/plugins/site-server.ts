@@ -6,6 +6,10 @@ import { config } from "../config.js";
 import { getFile, listFiles } from "../lib/r2.js";
 import { buildHeadSnippets, buildBodySnippets } from "../scripts/index.js";
 import type { Script, Site, BusinessProfile } from "../db/types.js";
+import type { SiteSpec } from "../blocks/types.js";
+import { buildSeoSnippets, siteBaseUrl } from "../render/seo.js";
+import { buildSpecSitemap } from "../render/sitemap.js";
+import { renderSpecPage } from "../render/pipeline.js";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -43,93 +47,7 @@ function getSiteSlug(host: string, baseDomain: string): string | null {
   return null;
 }
 
-function siteBaseUrl(site: Pick<Site, "slug" | "custom_domain">): string {
-  if (site.custom_domain) return `https://${site.custom_domain}`;
-  return `https://${site.slug}.${config.baseDomain}`;
-}
-
-function buildSeoSnippets(
-  site: Pick<Site, "slug" | "custom_domain">,
-  profile: BusinessProfile | null,
-  html: string,
-  requestPath: string
-): string {
-  const base = siteBaseUrl(site);
-  const pageUrl = requestPath === "/" ? base : `${base}${requestPath}`;
-  const tags: string[] = [];
-
-  function missing(needle: string) {
-    return !html.toLowerCase().includes(needle.toLowerCase());
-  }
-
-  if (missing('rel="canonical"')) {
-    tags.push(`<link rel="canonical" href="${pageUrl}">`);
-  }
-  if (missing('property="og:url"')) {
-    tags.push(`<meta property="og:url" content="${pageUrl}">`);
-  }
-  if (missing('property="og:type"')) {
-    tags.push(`<meta property="og:type" content="website">`);
-  }
-
-  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const titleText = titleMatch?.[1]?.trim() ?? profile?.biz_name ?? "";
-
-  if (titleText) {
-    if (missing('property="og:title"')) {
-      tags.push(`<meta property="og:title" content="${titleText.replace(/"/g, "&quot;")}">`);
-    }
-    if (missing('name="twitter:title"')) {
-      tags.push(`<meta name="twitter:title" content="${titleText.replace(/"/g, "&quot;")}">`);
-    }
-  }
-
-  if (profile?.description) {
-    if (missing('name="description"')) {
-      tags.push(`<meta name="description" content="${profile.description.replace(/"/g, "&quot;")}">`);
-    }
-    if (missing('property="og:description"')) {
-      tags.push(`<meta property="og:description" content="${profile.description.replace(/"/g, "&quot;")}">`);
-    }
-    if (missing('name="twitter:description"')) {
-      tags.push(`<meta name="twitter:description" content="${profile.description.replace(/"/g, "&quot;")}">`);
-    }
-  }
-
-  if (missing('name="twitter:card"')) {
-    tags.push(`<meta name="twitter:card" content="summary_large_image">`);
-  }
-
-  if (profile?.biz_name) {
-    const ld: Record<string, unknown> = {
-      "@context": "https://schema.org",
-      "@type": "LocalBusiness",
-      name: profile.biz_name,
-      url: base,
-    };
-    if (profile.description) ld.description = profile.description;
-    if (profile.phone) ld.telephone = profile.phone;
-    if (profile.email) ld.email = profile.email;
-    if (profile.address || profile.city || profile.state || profile.zip) {
-      ld.address = {
-        "@type": "PostalAddress",
-        ...(profile.address ? { streetAddress: profile.address } : {}),
-        ...(profile.city ? { addressLocality: profile.city } : {}),
-        ...(profile.state ? { addressRegion: profile.state } : {}),
-        ...(profile.zip ? { postalCode: profile.zip } : {}),
-        addressCountry: profile.country,
-      };
-    }
-    if (profile.hours) ld.openingHours = profile.hours;
-    if (missing('"LocalBusiness"')) {
-      tags.push(`<script type="application/ld+json">${JSON.stringify(ld)}</script>`);
-    }
-  }
-
-  return tags.join("\n");
-}
-
-async function buildSitemap(
+async function buildZipSitemap(
   site: Pick<Site, "slug" | "custom_domain">,
   siteId: string,
   fileBase: string
@@ -157,7 +75,7 @@ async function buildSitemap(
 
 
 async function serveSite(
-  site: Pick<Site, "id" | "slug" | "custom_domain">,
+  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme">,
   requestUrl: string,
   reply: any,
   slot: "draft" | "live" = "draft"
@@ -165,10 +83,15 @@ async function serveSite(
   const requestPath = requestUrl.split("?")[0];
   const fileBase = slot === "live" ? `live/${site.id}` : `sites/${site.id}`;
 
-  // Serve sitemap inline
+  // Sitemap: spec-based sites generate from spec; ZIP sites from R2
   if (requestPath === "/sitemap.xml") {
-    const xml = await buildSitemap(site, site.id, fileBase);
-    reply.header("Content-Type", "application/xml; charset=utf-8").send(xml);
+    if (site.spec) {
+      const xml = buildSpecSitemap(site, site.spec as SiteSpec);
+      reply.header("Content-Type", "application/xml; charset=utf-8").send(xml);
+    } else {
+      const xml = await buildZipSitemap(site, site.id, fileBase);
+      reply.header("Content-Type", "application/xml; charset=utf-8").send(xml);
+    }
     return;
   }
 
@@ -187,8 +110,26 @@ async function serveSite(
       .executeTakeFirst(),
   ]);
 
+  // Spec-based rendering
+  if (site.spec) {
+    const html = await renderSpecPage(site, profile ?? null, scripts, requestPath);
+    if (!html) {
+      reply.header("Content-Type", "text/html; charset=utf-8");
+      reply.status(404).send(NOT_FOUND_HTML);
+      return;
+    }
+    reply.header("Content-Type", "text/html; charset=utf-8").send(html);
+    return;
+  }
+
+  // ZIP file serving (unchanged)
   const decodedPath = decodeURIComponent(requestPath);
-  const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, "").replace(/^\//, "");
+  const normalized = path.normalize(decodedPath).replace(/^\//, "");
+  if (normalized.includes("..") || normalized.includes("\0")) {
+    reply.status(404).send(NOT_FOUND_HTML);
+    return;
+  }
+  const safePath = normalized;
   const base = fileBase;
 
   const candidates = [
@@ -198,7 +139,6 @@ async function serveSite(
   ];
 
   for (const key of candidates) {
-    // Build SEO snippet lazily using the HTML content
     const file = await getFile(key);
     if (!file) continue;
     const ext = path.extname(key).toLowerCase();
@@ -240,7 +180,7 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
     if (slug && !RESERVED_SLUGS.has(slug)) {
       const site = await db
         .selectFrom("sites")
-        .select(["id", "slug", "custom_domain", "published_at"])
+        .select(["id", "slug", "custom_domain", "published_at", "spec", "theme"])
         .where("slug", "=", slug)
         .executeTakeFirst();
 
@@ -257,7 +197,7 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
     // Path 2: custom domain match — serves the live (published) slot
     const site = await db
       .selectFrom("sites")
-      .select(["id", "slug", "custom_domain", "published_at", "live_published_at"])
+      .select(["id", "slug", "custom_domain", "published_at", "live_published_at", "spec", "theme"])
       .where("custom_domain", "=", hostname)
       .executeTakeFirst();
 

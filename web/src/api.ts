@@ -18,6 +18,10 @@ export interface Site {
   updated_at: string;
   published_at: string | null;
   live_published_at: string | null;
+  draft_updated_at: string | null;
+  spec: unknown | null;
+  theme: unknown | null;
+  generation_prompt: string | null;
 }
 
 export interface SiteFile {
@@ -177,6 +181,30 @@ export interface DomainStatus {
 
 export const getDomainStatus = (siteId: string) =>
   apiFetch<DomainStatus>(`/sites/${siteId}/domain-status`);
+
+export const THEME_PRESETS = ["bold", "professional", "warm", "dark", "minimal", "energetic"] as const;
+export type ThemePreset = (typeof THEME_PRESETS)[number];
+
+export const THEME_PRESET_COLORS: Record<ThemePreset, string> = {
+  bold: "#e63946",
+  professional: "#1e40af",
+  warm: "#ea580c",
+  dark: "#111827",
+  minimal: "#6b7280",
+  energetic: "#16a34a",
+};
+
+export const THEME_PRESET_LABELS: Record<ThemePreset, string> = {
+  bold: "Bold",
+  professional: "Professional",
+  warm: "Warm",
+  dark: "Dark",
+  minimal: "Minimal",
+  energetic: "Energetic",
+};
+
+export const generateSite = (siteId: string, body: { prompt: string; theme_preset?: string }) =>
+  apiFetch<Site>(`/sites/${siteId}/generate`, { method: "POST", body: JSON.stringify(body) });
 
 export interface BusinessProfile {
   id?: string;

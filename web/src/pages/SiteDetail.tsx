@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,6 +11,11 @@ import {
   Code2,
   Globe,
   X,
+  PanelRight,
+  RotateCcw,
+  ArrowLeft,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
 import {
   Button,
@@ -23,7 +28,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogTrigger,
-  PageHeader,
   Dropzone,
   DropzoneEmptyState,
   Dialog,
@@ -40,6 +44,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@pushpress/pushpress-ui";
+import { useSetHeader } from "../components/AppLayout";
 import {
   getSite,
   getSiteFiles,
@@ -55,7 +60,12 @@ import {
   getDomainStatus,
   getProfile,
   saveProfile,
+  generateSite,
   formatBytes,
+  THEME_PRESETS,
+  THEME_PRESET_COLORS,
+  THEME_PRESET_LABELS,
+  type ThemePreset,
   type SiteFile,
   type SiteScript,
   type BusinessProfile,
@@ -244,20 +254,28 @@ const PRESET_BADGES: Record<string, string> = {
 function ScriptRow({
   script,
   siteId,
+  onChanged,
 }: {
   script: SiteScript;
   siteId: string;
+  onChanged?: () => void;
 }) {
   const queryClient = useQueryClient();
 
   const toggleMutation = useMutation({
     mutationFn: (enabled: boolean) => updateScript(siteId, script.id, { enabled }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
+      onChanged?.();
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteScript(siteId, script.id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
+      onChanged?.();
+    },
   });
 
   return (
@@ -297,13 +315,14 @@ function ScriptRow({
             "{script.label}" will be removed from your site immediately.
           </AlertDialogDescription>
           <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <Button
               variant="destructive"
+              isSubmitting={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate()}
             >
               Remove script
-            </AlertDialogAction>
+            </Button>
           </div>
         </AlertDialogContent>
       </AlertDialog>
@@ -315,10 +334,12 @@ function AddScriptDialog({
   siteId,
   open,
   onClose,
+  onAdded,
 }: {
   siteId: string;
   open: boolean;
   onClose: () => void;
+  onAdded?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -337,6 +358,7 @@ function AddScriptDialog({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
+      onAdded?.();
       handleClose();
     },
     onError: (err: Error) => setError(err.message),
@@ -446,7 +468,7 @@ function AddScriptDialog({
   );
 }
 
-function BusinessInfoSection({ siteId }: { siteId: string }) {
+function BusinessInfoSection({ siteId, onSaved }: { siteId: string; onSaved?: () => void }) {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
 
@@ -471,6 +493,7 @@ function BusinessInfoSection({ siteId }: { siteId: string }) {
       queryClient.setQueryData(["sites", siteId, "profile"], data);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      onSaved?.();
     },
   });
 
@@ -590,6 +613,205 @@ function BusinessInfoSection({ siteId }: { siteId: string }) {
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+interface AiGenerateSectionProps {
+  siteId: string;
+  hasSpec: boolean;
+  spec: unknown;
+  theme: unknown;
+  generationPrompt: string;
+  genPrompt: string;
+  setGenPrompt: (v: string) => void;
+  genTheme: ThemePreset;
+  setGenTheme: (v: ThemePreset) => void;
+  genRegenOpen: boolean;
+  setGenRegenOpen: (v: boolean) => void;
+  isPending: boolean;
+  error: string | null;
+  onGenerate: () => void;
+}
+
+function GenerateForm({
+  genPrompt, setGenPrompt, genTheme, setGenTheme, isPending, error, onGenerate,
+}: Pick<AiGenerateSectionProps, "genPrompt" | "setGenPrompt" | "genTheme" | "setGenTheme" | "isPending" | "error" | "onGenerate">) {
+  return (
+    <div className="tw-space-y-4">
+      <div>
+        <Label htmlFor="gen-prompt" className="tw-text-sm tw-font-medium tw-mb-1.5 tw-block">
+          Describe your site
+        </Label>
+        <Textarea
+          id="gen-prompt"
+          placeholder='e.g. "A bold CrossFit gym focused on community. Include pricing tiers ($99/mo unlimited, $149/mo unlimited + personal training), a free trial offer, and an FAQ."'
+          value={genPrompt}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setGenPrompt(e.target.value)}
+          disabled={isPending}
+          rows={5}
+          className="tw-resize-none"
+        />
+      </div>
+      <div>
+        <p className="tw-text-sm tw-font-medium tw-mb-2">Theme</p>
+        <div className="tw-flex tw-flex-wrap tw-gap-2">
+          {THEME_PRESETS.map(preset => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setGenTheme(preset)}
+              className={`tw-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-full tw-text-sm tw-font-medium tw-border tw-transition-all ${
+                genTheme === preset
+                  ? "tw-border-foreground tw-bg-foreground tw-text-background"
+                  : "tw-border-border tw-text-foreground hover:tw-border-foreground/50"
+              }`}
+            >
+              <span
+                className="tw-w-3 tw-h-3 tw-rounded-full tw-shrink-0"
+                style={{ background: THEME_PRESET_COLORS[preset] }}
+              />
+              {THEME_PRESET_LABELS[preset]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && (
+        <p className="tw-text-sm tw-text-error">{error}</p>
+      )}
+      <Button
+        onClick={onGenerate}
+        disabled={!genPrompt.trim()}
+        isSubmitting={isPending}
+        className="tw-w-full"
+      >
+        Generate site
+      </Button>
+    </div>
+  );
+}
+
+function blockSummary(section: Record<string, unknown>): string {
+  const headline =
+    (section.headline as string | undefined) ??
+    (section.name as string | undefined) ??
+    (section.title as string | undefined);
+  if (headline) return `${String(section.type)} — "${headline}"`;
+  const items = section.items as unknown[] | undefined;
+  if (Array.isArray(items)) return `${String(section.type)} — ${items.length} items`;
+  const members = section.members as unknown[] | undefined;
+  if (Array.isArray(members)) return `${String(section.type)} — ${members.length} members`;
+  const images = section.images as unknown[] | undefined;
+  if (Array.isArray(images)) return `${String(section.type)} — ${images.length} images`;
+  return String(section.type);
+}
+
+function AiGenerateSection({
+  hasSpec, spec, theme, generationPrompt,
+  genPrompt, setGenPrompt, genTheme, setGenTheme,
+  genRegenOpen, setGenRegenOpen,
+  isPending, error, onGenerate,
+}: AiGenerateSectionProps) {
+  const specData = spec as { version: number; pages: { slug: string; title: string; sections: Record<string, unknown>[] }[] } | null;
+  const themeData = theme as { colors?: { primary?: string } } | null;
+  const totalBlocks = specData?.pages.reduce((n, p) => n + p.sections.length, 0) ?? 0;
+
+  // Prefill prompt from generation_prompt on mount
+  const didPrefill = useRef(false);
+  useEffect(() => {
+    if (!didPrefill.current && generationPrompt && !genPrompt) {
+      setGenPrompt(generationPrompt);
+      didPrefill.current = true;
+    }
+  }, [generationPrompt, genPrompt, setGenPrompt]);
+
+  if (!hasSpec) {
+    return (
+      <div className="tw-space-y-4">
+        <div>
+          <h2 className="tw-text-base tw-font-semibold">Generate your site with AI</h2>
+          <p className="tw-text-sm tw-text-muted-foreground tw-mt-1">
+            Describe your business and what you want. Claude will build a complete multi-page site instantly.
+          </p>
+        </div>
+        <GenerateForm
+          genPrompt={genPrompt} setGenPrompt={setGenPrompt}
+          genTheme={genTheme} setGenTheme={setGenTheme}
+          isPending={isPending} error={error} onGenerate={onGenerate}
+        />
+      </div>
+    );
+  }
+
+  // Find preset name from theme primary color
+  const primaryColor = themeData?.colors?.primary;
+  const presetName = primaryColor
+    ? (THEME_PRESETS.find(p => THEME_PRESET_COLORS[p] === primaryColor) ?? null)
+    : null;
+
+  return (
+    <div className="tw-space-y-4">
+      <div className="tw-flex tw-items-center tw-justify-between">
+        <div>
+          <h2 className="tw-text-base tw-font-semibold tw-flex tw-items-center tw-gap-1.5">
+            Generated site
+            <Badge variant="success" className="tw-text-xs">
+              {specData?.pages.length ?? 0} pages · {totalBlocks} blocks
+            </Badge>
+          </h2>
+        </div>
+      </div>
+
+      {/* Block list per page */}
+      <div className="tw-space-y-3">
+        {specData?.pages.map(page => (
+          <div key={page.slug} className="tw-space-y-1">
+            <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-muted-foreground">
+              {page.title}
+            </p>
+            <div className="tw-space-y-0.5">
+              {page.sections.map(s => (
+                <p key={String(s.id)} className="tw-text-sm tw-text-foreground tw-flex tw-items-center tw-gap-1.5">
+                  <span className="tw-text-muted-foreground">·</span>
+                  {blockSummary(s)}
+                </p>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Theme chip */}
+      {primaryColor && (
+        <div className="tw-flex tw-items-center tw-gap-2 tw-text-sm">
+          <span className="tw-text-muted-foreground">Theme:</span>
+          <span className="tw-flex tw-items-center tw-gap-1.5 tw-font-medium">
+            <span className="tw-w-3 tw-h-3 tw-rounded-full tw-inline-block" style={{ background: primaryColor }} />
+            {presetName ? THEME_PRESET_LABELS[presetName] : "Custom"}
+          </span>
+        </div>
+      )}
+
+      {/* Regenerate accordion */}
+      <div className="tw-border tw-border-border tw-rounded-lg tw-overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setGenRegenOpen(!genRegenOpen)}
+          className="tw-w-full tw-flex tw-items-center tw-justify-between tw-px-4 tw-py-3 tw-text-sm tw-font-medium tw-text-foreground hover:tw-bg-muted/50 tw-transition-colors"
+        >
+          Regenerate
+          <span className="tw-text-muted-foreground tw-text-lg tw-leading-none">{genRegenOpen ? "−" : "+"}</span>
+        </button>
+        {genRegenOpen && (
+          <div className="tw-px-4 tw-pb-4 tw-border-t tw-border-border tw-pt-4">
+            <GenerateForm
+              genPrompt={genPrompt} setGenPrompt={setGenPrompt}
+              genTheme={genTheme} setGenTheme={setGenTheme}
+              isPending={isPending} error={error} onGenerate={onGenerate}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -724,6 +946,13 @@ export function SiteDetail() {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkConfirming, setBulkConfirming] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
+  const [previewKey, setPreviewKey] = useState(0);
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
+  const [genPrompt, setGenPrompt] = useState("");
+  const [genTheme, setGenTheme] = useState<ThemePreset>("bold");
+  const [genRegenOpen, setGenRegenOpen] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: site, isLoading: siteLoading } = useQuery({
     queryKey: ["sites", id],
@@ -743,6 +972,10 @@ export function SiteDetail() {
     enabled: !!id,
   });
 
+  function refreshPreview() {
+    setPreviewKey((k) => k + 1);
+  }
+
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadZip(id!, file),
     onSuccess: (result) => {
@@ -752,13 +985,14 @@ export function SiteDetail() {
       setUploadError(null);
       setUploadSuccess(`${result.filesExtracted} files uploaded successfully.`);
       setTimeout(() => setUploadSuccess(null), 4000);
+      refreshPreview();
     },
     onError: (err: Error) => {
       setUploadError(err.message);
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteSiteMutation = useMutation({
     mutationFn: () => deleteSite(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sites"] });
@@ -770,6 +1004,15 @@ export function SiteDetail() {
     mutationFn: () => publishSite(id!),
     onSuccess: (data) => {
       queryClient.setQueryData(["sites", id], { ...data, cname_target: site?.cname_target });
+    },
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => generateSite(id!, { prompt: genPrompt, theme_preset: genTheme }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["sites", id], { ...data, cname_target: site?.cname_target });
+      setGenRegenOpen(false);
+      refreshPreview();
     },
   });
 
@@ -787,14 +1030,62 @@ export function SiteDetail() {
 
   async function handleBulkDelete() {
     setBulkDeleting(true);
-    await Promise.allSettled(
+    setBulkDeleteError(null);
+    const results = await Promise.allSettled(
       [...selectedFiles].map((path) => deleteFile(id!, path))
     );
-    setSelectedFiles(new Set());
+    const failed = results.filter((r) => r.status === "rejected").length;
     setBulkDeleting(false);
-    setBulkConfirming(false);
+    if (failed > 0) {
+      setBulkDeleteError(`${failed} file${failed !== 1 ? "s" : ""} could not be deleted. Refresh and try again.`);
+    } else {
+      setSelectedFiles(new Set());
+      setBulkConfirming(false);
+    }
     invalidateFiles();
   }
+
+  const isPublished = !!site?.published_at;
+  const files: SiteFile[] = filesData?.files ?? [];
+  const scripts: SiteScript[] = scriptsData?.scripts ?? [];
+  const previewUrl = site ? `http://${site.slug}.localhost:3000` : "";
+
+  const hasUnpublishedChanges =
+    isPublished &&
+    (!site?.live_published_at ||
+      (site?.draft_updated_at != null &&
+        new Date(site.draft_updated_at) > new Date(site.live_published_at!)));
+
+  useSetHeader(
+    site ? (
+      <div className="tw-flex tw-flex-1 tw-items-center tw-justify-between tw-min-w-0">
+        <div className="tw-flex tw-items-center tw-gap-2 tw-min-w-0">
+          <Button variant="ghost" size="icon-sm" onClick={() => navigate("/")} title="Back to sites">
+            <ArrowLeft className="tw-h-4 tw-w-4" />
+          </Button>
+          <span className="tw-font-semibold tw-text-foreground tw-truncate">{site.name}</span>
+          <Badge variant="outline" className="tw-shrink-0 tw-text-xs">
+            {site.spec ? "AI site" : "Uploaded"}
+          </Badge>
+        </div>
+        <div className="tw-flex tw-items-center tw-gap-2 tw-shrink-0">
+          {isPublished && (
+            hasUnpublishedChanges ? (
+              <Button
+                size="sm"
+                isSubmitting={publishMutation.isPending}
+                onClick={() => publishMutation.mutate()}
+              >
+                {site.live_published_at ? "Publish changes" : "Publish to live"}
+              </Button>
+            ) : (
+              <Badge variant="success">Live</Badge>
+            )
+          )}
+        </div>
+      </div>
+    ) : null
+  );
 
   if (siteLoading) {
     return (
@@ -808,256 +1099,340 @@ export function SiteDetail() {
 
   if (!site) return null;
 
-  const isPublished = !!site.published_at;
-  const files: SiteFile[] = filesData?.files ?? [];
-  const scripts: SiteScript[] = scriptsData?.scripts ?? [];
-
   return (
-    <div className="tw-max-w-2xl">
-      <PageHeader title={site.name} onBack={() => navigate("/")}>
-        <Badge variant={isPublished ? "success" : "outline"}>
-          {isPublished ? "Published" : "No files yet"}
-        </Badge>
-      </PageHeader>
+    <div className="tw-flex tw-gap-0 tw-h-[calc(100vh-5rem)]">
+      {/* Main panel — 1/3 width on lg+, full width on mobile */}
+      <div className="tw-flex-1 lg:tw-flex-none lg:tw-w-1/3 tw-shrink-0 tw-flex tw-flex-col tw-overflow-hidden lg:tw-border-r lg:tw-border-border">
+        <div className="tw-overflow-y-auto tw-flex-1 tw-pr-6 tw-pb-8">
 
-      <Tabs defaultValue="overview" className="tw-mt-6">
-        <TabsList className="tw-mb-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="files">Website</TabsTrigger>
-        </TabsList>
-
-        {/* Overview */}
-        <TabsContent value="overview" className="tw-space-y-6">
-          <BusinessInfoSection siteId={id!} />
-
-          <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
-            <h2 className="tw-text-base tw-font-semibold tw-text-error tw-mb-1">
-              Danger zone
-            </h2>
-            <p className="tw-text-sm tw-text-muted-foreground tw-mb-3">
-              Permanently delete this site and all its files. This cannot be undone.
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="tw-h-4 tw-w-4 tw-mr-1.5" />
-                  Delete site
+          <Tabs defaultValue="overview" className="tw-mt-6">
+            <div className="tw-flex tw-items-center tw-justify-between tw-mb-6">
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="ai">AI</TabsTrigger>
+                <TabsTrigger value="files">Website</TabsTrigger>
+              </TabsList>
+              {/* Mobile-only preview button */}
+              {isPublished && (
+                <Button variant="outline" size="sm" className="lg:tw-hidden" asChild>
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="tw-h-3.5 tw-w-3.5 tw-mr-1.5" />
+                    Preview
+                  </a>
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
-                </AlertDialogDescription>
-                <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => deleteMutation.mutate()}
-                  >
-                    Delete site
-                  </AlertDialogAction>
-                </div>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </TabsContent>
-
-        {/* Website */}
-        <TabsContent value="files" className="tw-space-y-6">
-          {isPublished && (
-            <>
-              <div>
-                <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-2">
-                  Site URL
-                </h2>
-                <UrlBar slug={site.slug} customDomain={site.custom_domain} />
-              </div>
-              <CustomDomainSection
-                siteId={id!}
-                customDomain={site.custom_domain}
-                domainStatus={site.domain_status}
-                cnameTarget={site.cname_target}
-              />
-            </>
-          )}
-          {isPublished && (
-            <div className="tw-rounded-lg tw-border tw-border-border tw-p-4 tw-flex tw-items-center tw-justify-between tw-gap-4">
-              <div>
-                <p className="tw-text-sm tw-font-medium tw-text-foreground">
-                  {site.live_published_at ? "Published to live" : "Not published to live"}
-                </p>
-                <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
-                  {site.live_published_at
-                    ? `Your custom domain serves this snapshot. Last published ${new Date(site.live_published_at).toLocaleDateString()}.`
-                    : "Your custom domain will serve files once you publish."}
-                </p>
-              </div>
-              <Button
-                variant={site.live_published_at ? "outline" : "default"}
-                size="sm"
-                isSubmitting={publishMutation.isPending}
-                onClick={() => publishMutation.mutate()}
-                className="tw-shrink-0"
-              >
-                {site.live_published_at ? "Republish" : "Publish to live"}
-              </Button>
+              )}
             </div>
-          )}
 
-          <div>
-            <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
-              {isPublished ? "Replace files" : "Upload your site"}
-            </h2>
-            <p className="tw-text-sm tw-text-muted-foreground tw-mb-4">
-              Export your AI-generated site as a zip file and drop it here.
-              {isPublished && " Uploading a new zip will merge files — existing files are kept unless overwritten."}
-            </p>
-            <Dropzone
-              accept={{
-                "application/zip": [".zip"],
-                "application/x-zip-compressed": [".zip"],
-                "application/octet-stream": [".zip"],
-              }}
-              maxFiles={1}
-              disabled={uploadMutation.isPending}
-              onChange={handleDrop}
-            >
-              <DropzoneEmptyState />
-            </Dropzone>
-            {uploadMutation.isPending && (
-              <p className="tw-text-sm tw-text-muted-foreground tw-mt-2">
-                Uploading and extracting files…
-              </p>
-            )}
-            {uploadSuccess && (
-              <p className="tw-text-sm tw-text-success tw-mt-2">{uploadSuccess}</p>
-            )}
-            {uploadError && (
-              <p className="tw-text-sm tw-text-error tw-mt-2">{uploadError}</p>
-            )}
-          </div>
+            {/* Overview */}
+            <TabsContent value="overview" className="tw-space-y-6">
+              <BusinessInfoSection siteId={id!} onSaved={refreshPreview} />
 
-          {files.length > 0 && (
-            <div>
-              <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-                <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
-                  Files{" "}
-                  <span className="tw-text-muted-foreground tw-font-normal tw-text-sm">
-                    ({files.length})
-                  </span>
+              <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
+                <h2 className="tw-text-base tw-font-semibold tw-text-error tw-mb-1">
+                  Danger zone
                 </h2>
-                {selectedFiles.size > 0 && (
-                  <AlertDialog open={bulkConfirming} onOpenChange={setBulkConfirming}>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
-                        Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
+                <p className="tw-text-sm tw-text-muted-foreground tw-mb-3">
+                  Permanently delete this site and all its files. This cannot be undone.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="tw-h-4 tw-w-4 tw-mr-1.5" />
+                      Delete site
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
+                    </AlertDialogDescription>
+                    <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
+                      <AlertDialogCancel disabled={deleteSiteMutation.isPending}>Cancel</AlertDialogCancel>
+                      <Button
+                        variant="destructive"
+                        isSubmitting={deleteSiteMutation.isPending}
+                        onClick={() => deleteSiteMutation.mutate()}
+                      >
+                        Delete site
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogTitle>Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently remove {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""} from your site. This cannot be undone.
-                      </AlertDialogDescription>
-                      <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-                        <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
-                        <Button
-                          variant="destructive"
-                          isSubmitting={bulkDeleting}
-                          onClick={handleBulkDelete}
-                        >
-                          Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
-                        </Button>
-                      </div>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    </div>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </TabsContent>
+
+            {/* AI generation */}
+            <TabsContent value="ai" className="tw-space-y-6">
+              <AiGenerateSection
+                siteId={id!}
+                hasSpec={!!site.spec}
+                spec={site.spec}
+                theme={site.theme}
+                generationPrompt={site.generation_prompt ?? ""}
+                genPrompt={genPrompt}
+                setGenPrompt={setGenPrompt}
+                genTheme={genTheme}
+                setGenTheme={setGenTheme}
+                genRegenOpen={genRegenOpen}
+                setGenRegenOpen={setGenRegenOpen}
+                isPending={generateMutation.isPending}
+                error={generateMutation.error?.message ?? null}
+                onGenerate={() => generateMutation.mutate()}
+              />
+            </TabsContent>
+
+            {/* Website */}
+            <TabsContent value="files" className="tw-space-y-6">
+              {isPublished && (
+                <>
+                  <div>
+                    <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-2">
+                      Site URL
+                    </h2>
+                    <UrlBar slug={site.slug} customDomain={site.custom_domain} />
+                  </div>
+                  <CustomDomainSection
+                    siteId={id!}
+                    customDomain={site.custom_domain}
+                    domainStatus={site.domain_status}
+                    cnameTarget={site.cname_target}
+                  />
+                </>
+              )}
+
+              <div>
+                <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
+                  {isPublished ? "Replace files" : "Upload your site"}
+                </h2>
+                <p className="tw-text-sm tw-text-muted-foreground tw-mb-4">
+                  Export your AI-generated site as a zip file and drop it here.
+                  {isPublished && " Uploading a new zip will merge files — existing files are kept unless overwritten."}
+                </p>
+                <Dropzone
+                  accept={{
+                    "application/zip": [".zip"],
+                    "application/x-zip-compressed": [".zip"],
+                    "application/octet-stream": [".zip"],
+                  }}
+                  maxFiles={1}
+                  disabled={uploadMutation.isPending}
+                  onChange={handleDrop}
+                >
+                  <DropzoneEmptyState />
+                </Dropzone>
+                {uploadMutation.isPending && (
+                  <p className="tw-text-sm tw-text-muted-foreground tw-mt-2">
+                    Uploading and extracting files…
+                  </p>
+                )}
+                {uploadSuccess && (
+                  <p className="tw-text-sm tw-text-success tw-mt-2">{uploadSuccess}</p>
+                )}
+                {uploadError && (
+                  <p className="tw-text-sm tw-text-error tw-mt-2">{uploadError}</p>
                 )}
               </div>
-              <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
-                {filesLoading ? (
-                  <div className="tw-py-4 tw-space-y-2">
-                    <Skeleton className="tw-h-4 tw-w-full" />
-                    <Skeleton className="tw-h-4 tw-w-3/4" />
-                  </div>
-                ) : (
-                  <>
-                    {files.length > 1 && (
-                      <div className="tw-flex tw-items-center tw-gap-3 tw-py-2 tw-border-b tw-border-border">
-                        <Checkbox
-                          checked={selectedFiles.size === files.length}
-                          onCheckedChange={(v) =>
-                            setSelectedFiles(v ? new Set(files.map((f) => f.path)) : new Set())
-                          }
-                          className="tw-shrink-0"
-                        />
-                        <span className="tw-text-xs tw-text-muted-foreground">
-                          {selectedFiles.size === 0
-                            ? "Select all"
-                            : `${selectedFiles.size} of ${files.length} selected`}
-                        </span>
-                      </div>
+
+              {files.length > 0 && (
+                <div>
+                  <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
+                    <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
+                      Files{" "}
+                      <span className="tw-text-muted-foreground tw-font-normal tw-text-sm">
+                        ({files.length})
+                      </span>
+                    </h2>
+                    {selectedFiles.size > 0 && (
+                      <AlertDialog open={bulkConfirming} onOpenChange={(o) => { setBulkConfirming(o); if (!o) setBulkDeleteError(null); }}>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <Trash2 className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
+                            Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogTitle>Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently remove {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""} from your site. This cannot be undone.
+                          </AlertDialogDescription>
+                          {bulkDeleteError && (
+                            <p className="tw-text-sm tw-text-error tw-mt-2">{bulkDeleteError}</p>
+                          )}
+                          <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
+                            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                            <Button
+                              variant="destructive"
+                              isSubmitting={bulkDeleting}
+                              onClick={handleBulkDelete}
+                            >
+                              Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
+                            </Button>
+                          </div>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
-                    {files.map((file) => (
-                      <FileRow
-                        key={file.path}
-                        file={file}
+                  </div>
+                  <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
+                    {filesLoading ? (
+                      <div className="tw-py-4 tw-space-y-2">
+                        <Skeleton className="tw-h-4 tw-w-full" />
+                        <Skeleton className="tw-h-4 tw-w-3/4" />
+                      </div>
+                    ) : (
+                      <>
+                        {files.length > 1 && (
+                          <div className="tw-flex tw-items-center tw-gap-3 tw-py-2 tw-border-b tw-border-border">
+                            <Checkbox
+                              checked={selectedFiles.size === files.length}
+                              onCheckedChange={(v) =>
+                                setSelectedFiles(v ? new Set(files.map((f) => f.path)) : new Set())
+                              }
+                              className="tw-shrink-0"
+                            />
+                            <span className="tw-text-xs tw-text-muted-foreground">
+                              {selectedFiles.size === 0
+                                ? "Select all"
+                                : `${selectedFiles.size} of ${files.length} selected`}
+                            </span>
+                          </div>
+                        )}
+                        {files.map((file) => (
+                          <FileRow
+                            key={file.path}
+                            file={file}
+                            siteId={id!}
+                            selected={selectedFiles.has(file.path)}
+                            onSelect={(checked) => {
+                              setSelectedFiles((prev) => {
+                                const next = new Set(prev);
+                                checked ? next.add(file.path) : next.delete(file.path);
+                                return next;
+                              });
+                            }}
+                            onDeleted={invalidateFiles}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="tw-space-y-4">
+                <div className="tw-flex tw-items-center tw-justify-between">
+                  <div>
+                    <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
+                      Third-party scripts
+                    </h2>
+                    <p className="tw-text-sm tw-text-muted-foreground tw-mt-0.5">
+                      Injected at serve time — no need to edit your files.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setAddScriptOpen(true)}>
+                    <Plus className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
+                    Add script
+                  </Button>
+                </div>
+                {scripts.length > 0 ? (
+                  <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
+                    {scripts.map((script) => (
+                      <ScriptRow
+                        key={script.id}
+                        script={script}
                         siteId={id!}
-                        selected={selectedFiles.has(file.path)}
-                        onSelect={(checked) => {
-                          setSelectedFiles((prev) => {
-                            const next = new Set(prev);
-                            checked ? next.add(file.path) : next.delete(file.path);
-                            return next;
-                          });
-                        }}
-                        onDeleted={invalidateFiles}
+                        onChanged={refreshPreview}
                       />
                     ))}
-                  </>
+                  </div>
+                ) : (
+                  <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-4 tw-py-6 tw-flex tw-flex-col tw-items-center tw-gap-2 tw-text-center">
+                    <Code2 className="tw-h-6 tw-w-6 tw-text-muted-foreground" />
+                    <p className="tw-text-sm tw-text-muted-foreground">
+                      No scripts yet. Add Google Analytics, GTM, Meta Pixel, or any custom code.
+                    </p>
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
 
-          <div className="tw-space-y-4">
-            <div className="tw-flex tw-items-center tw-justify-between">
-              <div>
-                <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
-                  Third-party scripts
-                </h2>
-                <p className="tw-text-sm tw-text-muted-foreground tw-mt-0.5">
-                  Injected at serve time — no need to edit your files.
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setAddScriptOpen(true)}>
-                <Plus className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
-                Add script
-              </Button>
-            </div>
-            {scripts.length > 0 ? (
-              <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
-                {scripts.map((script) => (
-                  <ScriptRow key={script.id} script={script} siteId={id!} />
-                ))}
-              </div>
+      {/* Preview panel — 2/3 width on lg+, hidden on mobile */}
+      <div className="tw-hidden lg:tw-flex tw-flex-col lg:tw-w-2/3 tw-overflow-hidden tw-bg-muted/40 tw-p-4 tw-gap-0">
+        {/* Browser chrome */}
+        <div className="tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2 tw-rounded-t-lg tw-border tw-border-b-0 tw-border-border tw-bg-background tw-shrink-0">
+          {/* Viewport toggle */}
+          <div className="tw-flex tw-items-center tw-rounded-md tw-border tw-border-border tw-p-0.5 tw-gap-0.5">
+            <button
+              onClick={() => setPreviewViewport("desktop")}
+              title="Desktop view"
+              className={`tw-rounded tw-p-1 tw-transition-colors ${previewViewport === "desktop" ? "tw-bg-muted tw-text-foreground" : "tw-text-muted-foreground hover:tw-text-foreground"}`}
+            >
+              <Monitor className="tw-h-3.5 tw-w-3.5" />
+            </button>
+            <button
+              onClick={() => setPreviewViewport("mobile")}
+              title="Mobile view"
+              className={`tw-rounded tw-p-1 tw-transition-colors ${previewViewport === "mobile" ? "tw-bg-muted tw-text-foreground" : "tw-text-muted-foreground hover:tw-text-foreground"}`}
+            >
+              <Smartphone className="tw-h-3.5 tw-w-3.5" />
+            </button>
+          </div>
+          <span className="tw-flex-1 tw-font-mono tw-text-xs tw-text-muted-foreground tw-truncate">
+            {previewUrl}
+          </span>
+          <Button variant="ghost" size="icon-sm" onClick={refreshPreview} title="Reload preview">
+            <RotateCcw className="tw-h-3.5 tw-w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" asChild title="Open in new tab">
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="tw-h-3.5 tw-w-3.5" />
+            </a>
+          </Button>
+        </div>
+
+        {/* Preview area */}
+        {isPublished ? (
+          <div className="tw-flex-1 tw-flex tw-overflow-hidden tw-border tw-border-border tw-rounded-b-lg tw-bg-background">
+            {previewViewport === "desktop" ? (
+              <iframe
+                key={`${previewKey}-desktop`}
+                ref={iframeRef}
+                src={previewUrl}
+                className="tw-flex-1 tw-w-full tw-border-0 tw-bg-white"
+                title="Site preview — desktop"
+              />
             ) : (
-              <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-4 tw-py-6 tw-flex tw-flex-col tw-items-center tw-gap-2 tw-text-center">
-                <Code2 className="tw-h-6 tw-w-6 tw-text-muted-foreground" />
-                <p className="tw-text-sm tw-text-muted-foreground">
-                  No scripts yet. Add Google Analytics, GTM, Meta Pixel, or any custom code.
-                </p>
+              <div className="tw-flex-1 tw-flex tw-items-start tw-justify-center tw-overflow-auto tw-bg-muted/40 tw-p-4">
+                <div className="tw-flex tw-flex-col tw-rounded-xl tw-border-2 tw-border-border tw-overflow-hidden tw-shadow-md" style={{ width: 390 }}>
+                  <iframe
+                    key={`${previewKey}-mobile`}
+                    src={previewUrl}
+                    style={{ width: 390, height: 844, border: 0 }}
+                    title="Site preview — mobile"
+                  />
+                </div>
               </div>
             )}
           </div>
-        </TabsContent>
-
-      </Tabs>
+        ) : (
+          <div className="tw-flex tw-flex-1 tw-items-center tw-justify-center tw-text-center tw-p-8 tw-border tw-border-border tw-rounded-b-lg tw-bg-background">
+            <div>
+              <PanelRight className="tw-h-8 tw-w-8 tw-text-muted-foreground tw-mx-auto tw-mb-3" />
+              <p className="tw-text-sm tw-text-muted-foreground">
+                Upload a zip file to see a live preview here.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       <AddScriptDialog
         siteId={id!}
         open={addScriptOpen}
         onClose={() => setAddScriptOpen(false)}
+        onAdded={refreshPreview}
       />
     </div>
   );

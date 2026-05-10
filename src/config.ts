@@ -33,6 +33,8 @@ export const config = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     callbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "http://localhost:3000/api/auth/google/callback",
   },
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? "",
   sitesDir: path.resolve(process.env.SITES_DIR ?? "./data/sites"),
   db: dbFromUrl ?? {
     host: process.env.DB_HOST ?? "localhost",

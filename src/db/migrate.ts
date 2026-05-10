@@ -54,6 +54,14 @@ const sql = `
   -- Phase 4.2: Draft/live split — live slot is what the custom domain serves
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS live_published_at TIMESTAMPTZ;
 
+  -- Track when draft content last changed (files only), separate from updated_at
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_updated_at TIMESTAMPTZ;
+
+  -- Phase 5: AI-generated page spec + theme
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS spec JSONB;
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme JSONB;
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS generation_prompt TEXT;
+
   -- Phase 4.1: Business profile for SEO/structured data injection
   CREATE TABLE IF NOT EXISTS business_profiles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

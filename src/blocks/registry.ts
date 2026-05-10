@@ -1,0 +1,49 @@
+import { z } from "zod";
+import type { BlockDefinition, SiteSection, Theme } from "./types.js";
+import type { BusinessProfile } from "../db/types.js";
+
+export class BlockRegistry {
+  private blocks = new Map<string, BlockDefinition>();
+
+  register(block: BlockDefinition): void {
+    this.blocks.set(block.type, block);
+  }
+
+  render(section: SiteSection, theme: Theme, profile: BusinessProfile | null): string {
+    const block = this.blocks.get(section.type);
+    if (!block) return "";
+    try {
+      return block.render(section as Record<string, unknown>, theme, profile);
+    } catch (err) {
+      console.error(`Block render error [${section.type}]:`, err);
+      return "";
+    }
+  }
+
+  validate(raw: unknown): SiteSection {
+    if (typeof raw !== "object" || raw === null || !("type" in raw)) {
+      throw new Error("Section must be an object with a type field");
+    }
+    const r = raw as Record<string, unknown>;
+    const block = this.blocks.get(r.type as string);
+    if (!block) throw new Error(`Unknown block type: ${r.type as string}`);
+    const base = z.object({ id: z.string(), type: z.string() });
+    const parsed = base.parse(raw);
+    block.schema.parse(raw);
+    return { ...r, ...parsed } as SiteSection;
+  }
+
+  toAISchema(): object {
+    const defs: Record<string, object> = {};
+    for (const [type, block] of this.blocks) {
+      defs[type] = block.aiSchema;
+    }
+    return defs;
+  }
+
+  getTypes(): string[] {
+    return [...this.blocks.keys()];
+  }
+}
+
+export const registry = new BlockRegistry();

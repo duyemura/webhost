@@ -112,19 +112,16 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       return reply.badRequest("The zip contained no usable files.");
     }
 
-    if (!site.published_at) {
-      await db
-        .updateTable("sites")
-        .set({ published_at: new Date(), updated_at: new Date() })
-        .where("id", "=", id)
-        .execute();
-    } else {
-      await db
-        .updateTable("sites")
-        .set({ updated_at: new Date() })
-        .where("id", "=", id)
-        .execute();
-    }
+    const now = new Date();
+    await db
+      .updateTable("sites")
+      .set({
+        updated_at: now,
+        draft_updated_at: now,
+        ...(site.published_at ? {} : { published_at: now }),
+      })
+      .where("id", "=", id)
+      .execute();
 
     const updatedSite = await db
       .selectFrom("sites")
@@ -189,6 +186,12 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
     }
 
     await deleteFile(`sites/${id}/${path.normalize(filePath)}`);
+    const now = new Date();
+    await db
+      .updateTable("sites")
+      .set({ updated_at: now, draft_updated_at: now })
+      .where("id", "=", id)
+      .execute();
     return reply.status(204).send();
   });
 

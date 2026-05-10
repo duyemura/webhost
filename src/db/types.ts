@@ -27,6 +27,10 @@ export interface SitesTable {
   updated_at: Generated<Date>;
   published_at: Date | null;
   live_published_at: Date | null;
+  draft_updated_at: Date | null;
+  spec: unknown | null;
+  theme: unknown | null;
+  generation_prompt: string | null;
 }
 
 export type User = Selectable<UsersTable>;

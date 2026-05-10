@@ -115,12 +115,12 @@ export const BLOCK_CSS = `
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.62);
 }
 .block-hero--media .container { position: relative; z-index: 2; }
-.block-hero--media .block-hero__sub { color: rgba(255,255,255,0.8); }
+.block-hero--media .block-hero__sub { color: rgba(255,255,255,0.85); }
 /* DI with media gets a heavier overlay */
-.block-hero--di.block-hero--media .block-hero__overlay { background: rgba(0,0,0,0.68); }
+.block-hero--di.block-hero--media .block-hero__overlay { background: rgba(0,0,0,0.72); }
 .block-hero__content { max-width: 800px; }
 .block-hero__sub {
   font-size: 1.25rem;

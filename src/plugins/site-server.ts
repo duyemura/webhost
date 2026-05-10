@@ -75,6 +75,9 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
   app.addHook("onRequest", async (req, reply) => {
     const hostname = req.hostname;
 
+    // Let API and static routes pass through unmodified
+    if (req.url.startsWith("/api/") || req.url.startsWith("/assets/")) return;
+
     // Path 1: subdomain match — {slug}.localhost (or configured baseDomain)
     const slug = getSiteSlug(hostname, config.baseDomain);
     if (slug && !RESERVED_SLUGS.has(slug)) {

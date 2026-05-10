@@ -69,7 +69,13 @@ import {
   type SiteFile,
   type SiteScript,
   type BusinessProfile,
+  type SiteSpec,
+  type Theme,
+  DEFAULT_THEME,
+  updateSpec,
+  updateTheme,
 } from "../api";
+import { BlockEditor } from "../components/editor/BlockEditor";
 
 const DOMAIN_RE = /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
@@ -1110,6 +1116,7 @@ export function SiteDetail() {
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="ai">AI</TabsTrigger>
+                <TabsTrigger value="editor">Editor</TabsTrigger>
                 <TabsTrigger value="files">Website</TabsTrigger>
               </TabsList>
               {/* Mobile-only preview button */}
@@ -1179,6 +1186,22 @@ export function SiteDetail() {
                 error={generateMutation.error?.message ?? null}
                 onGenerate={() => generateMutation.mutate()}
               />
+            </TabsContent>
+
+            {/* Block editor */}
+            <TabsContent value="editor" className="tw-space-y-4">
+              {site.spec ? (
+                <BlockEditor
+                  siteId={id!}
+                  initialSpec={site.spec as SiteSpec}
+                  initialTheme={(site.theme ?? DEFAULT_THEME) as Theme}
+                  iframeRef={iframeRef}
+                />
+              ) : (
+                <div className="tw-text-center tw-py-12 tw-text-muted-foreground">
+                  <p className="tw-text-sm">No site generated yet. Use the AI tab to generate your site first.</p>
+                </div>
+              )}
             </TabsContent>
 
             {/* Website */}

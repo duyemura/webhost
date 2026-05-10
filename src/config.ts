@@ -1,5 +1,4 @@
 import "dotenv/config";
-import path from "node:path";
 
 function parseDbUrl(url: string) {
   const u = new URL(url);
@@ -35,7 +34,6 @@ export const config = {
   },
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? "",
-  sitesDir: path.resolve(process.env.SITES_DIR ?? "./data/sites"),
   db: dbFromUrl ?? {
     host: process.env.DB_HOST ?? "localhost",
     port: Number(process.env.DB_PORT ?? 5432),

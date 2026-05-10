@@ -15,7 +15,7 @@ export function Login() {
                 Webhost
               </h1>
               <p className="tw-text-sm tw-text-muted-foreground tw-text-center">
-                Upload your AI-generated site and get a live URL instantly.
+                Build your AI-generated site and get a live URL instantly.
               </p>
             </div>
 

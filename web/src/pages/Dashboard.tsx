@@ -180,7 +180,7 @@ export function Dashboard() {
             {user?.name ? `${user.name.split(" ")[0]}'s sites` : "Your sites"}
           </h1>
           <p className="tw-text-sm tw-text-muted-foreground tw-mt-0.5">
-            Upload an AI-generated site and get a live URL instantly.
+            Build an AI-generated site and get a live URL instantly.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -211,7 +211,7 @@ export function Dashboard() {
           <Globe className="tw-h-10 tw-w-10 tw-text-muted-foreground tw-mb-3" />
           <h3 className="tw-font-medium tw-text-foreground">No sites yet</h3>
           <p className="tw-text-sm tw-text-muted-foreground tw-mt-1 tw-mb-4">
-            Create your first site and upload your HTML files to get started.
+            Create your first site and generate it with AI to get started.
           </p>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="tw-h-4 tw-w-4 tw-mr-1.5" />

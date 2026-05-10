@@ -4,6 +4,7 @@ dockerfilePath = "Dockerfile"
 buildArgs = { NPM_GITHUB_TOKEN = "${{NPM_GITHUB_TOKEN}}" }
 
 [deploy]
+preDeployCommand = "node dist/db/migrate.js"
 startCommand = "node dist/server.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300

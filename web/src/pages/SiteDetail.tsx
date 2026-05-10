@@ -35,6 +35,10 @@ import {
   Label,
   Textarea,
   Checkbox,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from "@pushpress/pushpress-ui";
 import {
   getSite,
@@ -802,176 +806,193 @@ export function SiteDetail() {
 
   return (
     <div className="tw-max-w-2xl">
-      <PageHeader
-        title={site.name}
-        onBack={() => navigate("/")}
-      >
+      <PageHeader title={site.name} onBack={() => navigate("/")}>
         <Badge variant={isPublished ? "success" : "outline"}>
           {isPublished ? "Published" : "No files yet"}
         </Badge>
       </PageHeader>
 
-      <div className="tw-mt-6 tw-space-y-6">
-        {/* URL bar */}
-        {isPublished && (
+      <Tabs defaultValue="overview" className="tw-mt-6">
+        <TabsList className="tw-mb-6">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="files">
+            Files{files.length > 0 && ` (${files.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="seo">SEO</TabsTrigger>
+          <TabsTrigger value="scripts">
+            Scripts{scripts.length > 0 && ` (${scripts.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+
+        {/* Overview */}
+        <TabsContent value="overview" className="tw-space-y-6">
+          {isPublished ? (
+            <>
+              <div>
+                <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
+                  Site URL
+                </h2>
+                <UrlBar slug={site.slug} customDomain={site.custom_domain} />
+              </div>
+              <CustomDomainSection
+                siteId={id!}
+                customDomain={site.custom_domain}
+                domainStatus={site.domain_status}
+                cnameTarget={site.cname_target}
+              />
+            </>
+          ) : (
+            <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-6 tw-py-10 tw-text-center">
+              <p className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-1">
+                No files yet
+              </p>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                Upload a zip in the Files tab to publish your site.
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Files */}
+        <TabsContent value="files" className="tw-space-y-6">
           <div>
             <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
-              Site URL
+              {isPublished ? "Replace files" : "Upload your site"}
             </h2>
-            <UrlBar slug={site.slug} customDomain={site.custom_domain} />
-          </div>
-        )}
-
-        {/* Custom domain */}
-        {isPublished && (
-          <CustomDomainSection
-            siteId={id!}
-            customDomain={site.custom_domain}
-            domainStatus={site.domain_status}
-            cnameTarget={site.cname_target}
-          />
-        )}
-
-        {/* Business info */}
-        <BusinessInfoSection siteId={id!} />
-
-        {/* Upload */}
-        <div>
-          <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
-            {isPublished ? "Replace files" : "Upload your site"}
-          </h2>
-          <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
-            Export your AI-generated site as a zip file and drop it here.
-            {isPublished && " Uploading a new zip will merge files — existing files are kept unless overwritten."}
-          </p>
-
-          <Dropzone
-            accept={{
-              "application/zip": [".zip"],
-              "application/x-zip-compressed": [".zip"],
-              "application/octet-stream": [".zip"],
-            }}
-            maxFiles={1}
-            disabled={uploadMutation.isPending}
-            onChange={handleDrop}
-          >
-            <DropzoneEmptyState />
-          </Dropzone>
-
-          {uploadMutation.isPending && (
-            <p className="tw-text-sm tw-text-muted-foreground tw-mt-2">
-              Uploading and extracting files…
+            <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+              Export your AI-generated site as a zip file and drop it here.
+              {isPublished && " Uploading a new zip will merge files — existing files are kept unless overwritten."}
             </p>
-          )}
-          {uploadSuccess && (
-            <p className="tw-text-sm tw-text-success tw-mt-2">{uploadSuccess}</p>
-          )}
-          {uploadError && (
-            <p className="tw-text-sm tw-text-error tw-mt-2">{uploadError}</p>
-          )}
-        </div>
+            <Dropzone
+              accept={{
+                "application/zip": [".zip"],
+                "application/x-zip-compressed": [".zip"],
+                "application/octet-stream": [".zip"],
+              }}
+              maxFiles={1}
+              disabled={uploadMutation.isPending}
+              onChange={handleDrop}
+            >
+              <DropzoneEmptyState />
+            </Dropzone>
+            {uploadMutation.isPending && (
+              <p className="tw-text-sm tw-text-muted-foreground tw-mt-2">
+                Uploading and extracting files…
+              </p>
+            )}
+            {uploadSuccess && (
+              <p className="tw-text-sm tw-text-success tw-mt-2">{uploadSuccess}</p>
+            )}
+            {uploadError && (
+              <p className="tw-text-sm tw-text-error tw-mt-2">{uploadError}</p>
+            )}
+          </div>
 
-        {/* File list */}
-        {files.length > 0 && (
-          <div>
-            <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-              <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
-                Files{" "}
-                <span className="tw-text-muted-foreground tw-font-normal">
-                  ({files.length})
-                </span>
-              </h2>
-              {selectedFiles.size > 0 && (
-                <AlertDialog open={bulkConfirming} onOpenChange={setBulkConfirming}>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
-                      Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogTitle>Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently remove {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""} from your site. This cannot be undone.
-                    </AlertDialogDescription>
-                    <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-                      <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
-                      <Button
-                        variant="destructive"
-                        isSubmitting={bulkDeleting}
-                        onClick={handleBulkDelete}
-                      >
+          {files.length > 0 && (
+            <div>
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
+                <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
+                  Files{" "}
+                  <span className="tw-text-muted-foreground tw-font-normal">
+                    ({files.length})
+                  </span>
+                </h2>
+                {selectedFiles.size > 0 && (
+                  <AlertDialog open={bulkConfirming} onOpenChange={setBulkConfirming}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
                         Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
                       </Button>
-                    </div>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
-            <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
-              {filesLoading ? (
-                <div className="tw-py-4 tw-space-y-2">
-                  <Skeleton className="tw-h-4 tw-w-full" />
-                  <Skeleton className="tw-h-4 tw-w-3/4" />
-                </div>
-              ) : (
-                <>
-                  {files.length > 1 && (
-                    <div className="tw-flex tw-items-center tw-gap-3 tw-py-2 tw-border-b tw-border-border">
-                      <Checkbox
-                        checked={selectedFiles.size === files.length}
-                        onCheckedChange={(v) =>
-                          setSelectedFiles(v ? new Set(files.map((f) => f.path)) : new Set())
-                        }
-                        className="tw-shrink-0"
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogTitle>Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently remove {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""} from your site. This cannot be undone.
+                      </AlertDialogDescription>
+                      <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
+                        <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                        <Button
+                          variant="destructive"
+                          isSubmitting={bulkDeleting}
+                          onClick={handleBulkDelete}
+                        >
+                          Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
+                        </Button>
+                      </div>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+              <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
+                {filesLoading ? (
+                  <div className="tw-py-4 tw-space-y-2">
+                    <Skeleton className="tw-h-4 tw-w-full" />
+                    <Skeleton className="tw-h-4 tw-w-3/4" />
+                  </div>
+                ) : (
+                  <>
+                    {files.length > 1 && (
+                      <div className="tw-flex tw-items-center tw-gap-3 tw-py-2 tw-border-b tw-border-border">
+                        <Checkbox
+                          checked={selectedFiles.size === files.length}
+                          onCheckedChange={(v) =>
+                            setSelectedFiles(v ? new Set(files.map((f) => f.path)) : new Set())
+                          }
+                          className="tw-shrink-0"
+                        />
+                        <span className="tw-text-xs tw-text-muted-foreground">
+                          {selectedFiles.size === 0
+                            ? "Select all"
+                            : `${selectedFiles.size} of ${files.length} selected`}
+                        </span>
+                      </div>
+                    )}
+                    {files.map((file) => (
+                      <FileRow
+                        key={file.path}
+                        file={file}
+                        siteId={id!}
+                        selected={selectedFiles.has(file.path)}
+                        onSelect={(checked) => {
+                          setSelectedFiles((prev) => {
+                            const next = new Set(prev);
+                            checked ? next.add(file.path) : next.delete(file.path);
+                            return next;
+                          });
+                        }}
+                        onDeleted={invalidateFiles}
                       />
-                      <span className="tw-text-xs tw-text-muted-foreground">
-                        {selectedFiles.size === 0
-                          ? "Select all"
-                          : `${selectedFiles.size} of ${files.length} selected`}
-                      </span>
-                    </div>
-                  )}
-                  {files.map((file) => (
-                    <FileRow
-                      key={file.path}
-                      file={file}
-                      siteId={id!}
-                      selected={selectedFiles.has(file.path)}
-                      onSelect={(checked) => {
-                        setSelectedFiles((prev) => {
-                          const next = new Set(prev);
-                          checked ? next.add(file.path) : next.delete(file.path);
-                          return next;
-                        });
-                      }}
-                      onDeleted={invalidateFiles}
-                    />
-                  ))}
-                </>
-              )}
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </TabsContent>
 
-        {/* Third-party scripts */}
-        <div>
-          <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-            <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
-              Third-party scripts
-            </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddScriptOpen(true)}
-            >
+        {/* SEO */}
+        <TabsContent value="seo">
+          <BusinessInfoSection siteId={id!} />
+        </TabsContent>
+
+        {/* Scripts */}
+        <TabsContent value="scripts" className="tw-space-y-4">
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <div>
+              <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
+                Third-party scripts
+              </h2>
+              <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
+                Injected at serve time — no need to edit your files.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setAddScriptOpen(true)}>
               <Plus className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
               Add script
             </Button>
           </div>
-          <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
-            Scripts are injected into your site's HTML at serve time — no need to edit your files.
-          </p>
           {scripts.length > 0 ? (
             <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
               {scripts.map((script) => (
@@ -986,41 +1007,43 @@ export function SiteDetail() {
               </p>
             </div>
           )}
-        </div>
+        </TabsContent>
 
-        {/* Danger zone */}
-        <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
-          <h2 className="tw-text-sm tw-font-medium tw-text-error tw-mb-1">
-            Danger zone
-          </h2>
-          <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
-            Permanently delete this site and all its files. This cannot be undone.
-          </p>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="tw-h-4 tw-w-4 tw-mr-1.5" />
-                Delete site
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
-              </AlertDialogDescription>
-              <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={() => deleteMutation.mutate()}
-                >
+        {/* Settings */}
+        <TabsContent value="settings">
+          <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
+            <h2 className="tw-text-sm tw-font-medium tw-text-error tw-mb-1">
+              Danger zone
+            </h2>
+            <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+              Permanently delete this site and all its files. This cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="tw-h-4 tw-w-4 tw-mr-1.5" />
                   Delete site
-                </AlertDialogAction>
-              </div>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
+                </AlertDialogDescription>
+                <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => deleteMutation.mutate()}
+                  >
+                    Delete site
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <AddScriptDialog
         siteId={id!}

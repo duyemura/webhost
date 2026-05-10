@@ -1,7 +1,7 @@
 import type { Theme } from "../types.js";
 import type { BusinessProfile } from "../../db/types.js";
 import { interpolate } from "../../render/interpolate.js";
-import { esc } from "../../render/escape.js";
+import { esc, safeUrl } from "../../render/escape.js";
 
 interface HeroFields {
   headline: string;
@@ -33,8 +33,8 @@ export function render(section: Record<string, unknown>, _theme: Theme, profile:
       <h1>${esc(interpolate(s.headline, profile))}</h1>
       ${s.subheadline ? `<p class="block-hero__sub">${esc(interpolate(s.subheadline, profile))}</p>` : ""}
       ${(s.cta_primary || s.cta_secondary) ? `<div class="block-hero__actions">
-        ${s.cta_primary ? `<a href="${esc(s.cta_primary.url)}" class="btn-primary">${esc(s.cta_primary.text)}</a>` : ""}
-        ${s.cta_secondary ? `<a href="${esc(s.cta_secondary.url)}" class="btn-secondary">${esc(s.cta_secondary.text)}</a>` : ""}
+        ${s.cta_primary ? `<a href="${safeUrl(s.cta_primary.url)}" class="btn-primary">${esc(s.cta_primary.text)}</a>` : ""}
+        ${s.cta_secondary ? `<a href="${safeUrl(s.cta_secondary.url)}" class="btn-secondary">${esc(s.cta_secondary.text)}</a>` : ""}
       </div>` : ""}
     </div>
   </div>

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../db/client.js";
+import { specSchema } from "./schemas.js";
 import { anthropic } from "../lib/anthropic.js";
 import { registry } from "../blocks/index.js";
 import { THEME_PRESETS } from "../render/theme-presets.js";
@@ -100,15 +101,6 @@ function buildInputSchema(): object {
   };
 }
 
-const specSchema = z.object({
-  version: z.literal(1),
-  pages: z.array(z.object({
-    slug: z.string().regex(/^[a-z0-9-]+$/),
-    title: z.string().min(1).max(200),
-    meta_description: z.string().max(300).optional().default(""),
-    sections: z.array(z.object({ id: z.string(), type: z.string() }).passthrough()),
-  })).min(1),
-}).refine(s => s.pages[0]?.slug === "index", { message: "First page slug must be \"index\"" });
 
 export const generateRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("onRequest", app.authenticate);

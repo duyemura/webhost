@@ -7,7 +7,7 @@ import type { SiteSection, SiteSpec } from "../../api";
 
 // Fields that should always appear for a block type, even if missing from an older spec
 const BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
-  hero: { image_url: "", background_video_url: "" },
+  hero: { eyebrow: "", image_url: "", background_video_url: "" },
 };
 
 function withDefaults(section: SiteSection): SiteSection {

@@ -8,7 +8,7 @@
     {
       "id": "hero-1",
       "type": "hero",
-      "eyebrow": "{{biz_name}}",
+      "eyebrow": "{{business.name}}",
       "headline": "FORGE YOUR\nSTRONGEST SELF",
       "accent_words": ["STRONGEST"],
       "subheadline": "Elite coaching. Real results. No excuses.",

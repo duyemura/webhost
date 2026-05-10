@@ -815,9 +815,7 @@ export function SiteDetail() {
       <Tabs defaultValue="overview" className="tw-mt-6">
         <TabsList className="tw-mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="files">
-            Files{files.length > 0 && ` (${files.length})`}
-          </TabsTrigger>
+          <TabsTrigger value="files">Website</TabsTrigger>
           <TabsTrigger value="scripts">
             Scripts{scripts.length > 0 && ` (${scripts.length})`}
           </TabsTrigger>
@@ -825,22 +823,6 @@ export function SiteDetail() {
 
         {/* Overview */}
         <TabsContent value="overview" className="tw-space-y-6">
-          {isPublished && (
-            <>
-              <div>
-                <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
-                  Site URL
-                </h2>
-                <UrlBar slug={site.slug} customDomain={site.custom_domain} />
-              </div>
-              <CustomDomainSection
-                siteId={id!}
-                customDomain={site.custom_domain}
-                domainStatus={site.domain_status}
-                cnameTarget={site.cname_target}
-              />
-            </>
-          )}
           <BusinessInfoSection siteId={id!} />
 
           <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
@@ -876,8 +858,24 @@ export function SiteDetail() {
           </div>
         </TabsContent>
 
-        {/* Files */}
+        {/* Website */}
         <TabsContent value="files" className="tw-space-y-6">
+          {isPublished && (
+            <>
+              <div>
+                <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
+                  Site URL
+                </h2>
+                <UrlBar slug={site.slug} customDomain={site.custom_domain} />
+              </div>
+              <CustomDomainSection
+                siteId={id!}
+                customDomain={site.custom_domain}
+                domainStatus={site.domain_status}
+                cnameTarget={site.cname_target}
+              />
+            </>
+          )}
           <div>
             <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
               {isPublished ? "Replace files" : "Upload your site"}

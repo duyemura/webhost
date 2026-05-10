@@ -139,7 +139,7 @@ function CustomDomainSection({
 
   return (
     <div>
-      <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
+      <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
         Custom domain
       </h2>
 
@@ -486,10 +486,10 @@ function BusinessInfoSection({ siteId }: { siteId: string }) {
 
   return (
     <div>
-      <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-1">
+      <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
         Business info
       </h2>
-      <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+      <p className="tw-text-sm tw-text-muted-foreground tw-mb-4">
         Used to inject structured data, OG tags, and a sitemap into your site automatically.
       </p>
       <form onSubmit={handleSubmit} className="tw-space-y-3">
@@ -823,10 +823,10 @@ export function SiteDetail() {
           <BusinessInfoSection siteId={id!} />
 
           <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
-            <h2 className="tw-text-sm tw-font-medium tw-text-error tw-mb-1">
+            <h2 className="tw-text-base tw-font-semibold tw-text-error tw-mb-1">
               Danger zone
             </h2>
-            <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+            <p className="tw-text-sm tw-text-muted-foreground tw-mb-3">
               Permanently delete this site and all its files. This cannot be undone.
             </p>
             <AlertDialog>
@@ -860,7 +860,7 @@ export function SiteDetail() {
           {isPublished && (
             <>
               <div>
-                <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
+                <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-2">
                   Site URL
                 </h2>
                 <UrlBar slug={site.slug} customDomain={site.custom_domain} />
@@ -874,10 +874,10 @@ export function SiteDetail() {
             </>
           )}
           <div>
-            <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
+            <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
               {isPublished ? "Replace files" : "Upload your site"}
             </h2>
-            <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+            <p className="tw-text-sm tw-text-muted-foreground tw-mb-4">
               Export your AI-generated site as a zip file and drop it here.
               {isPublished && " Uploading a new zip will merge files — existing files are kept unless overwritten."}
             </p>
@@ -909,9 +909,9 @@ export function SiteDetail() {
           {files.length > 0 && (
             <div>
               <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-                <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
+                <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
                   Files{" "}
-                  <span className="tw-text-muted-foreground tw-font-normal">
+                  <span className="tw-text-muted-foreground tw-font-normal tw-text-sm">
                     ({files.length})
                   </span>
                 </h2>
@@ -991,10 +991,10 @@ export function SiteDetail() {
           <div className="tw-space-y-4">
             <div className="tw-flex tw-items-center tw-justify-between">
               <div>
-                <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
+                <h2 className="tw-text-base tw-font-semibold tw-text-foreground">
                   Third-party scripts
                 </h2>
-                <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
+                <p className="tw-text-sm tw-text-muted-foreground tw-mt-0.5">
                   Injected at serve time — no need to edit your files.
                 </p>
               </div>

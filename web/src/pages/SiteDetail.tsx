@@ -816,9 +816,6 @@ export function SiteDetail() {
         <TabsList className="tw-mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="files">Website</TabsTrigger>
-          <TabsTrigger value="scripts">
-            Scripts{scripts.length > 0 && ` (${scripts.length})`}
-          </TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -990,39 +987,37 @@ export function SiteDetail() {
               </div>
             </div>
           )}
-        </TabsContent>
 
-
-        {/* Scripts */}
-        <TabsContent value="scripts" className="tw-space-y-4">
-          <div className="tw-flex tw-items-center tw-justify-between">
-            <div>
-              <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
-                Third-party scripts
-              </h2>
-              <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
-                Injected at serve time — no need to edit your files.
-              </p>
+          <div className="tw-space-y-4">
+            <div className="tw-flex tw-items-center tw-justify-between">
+              <div>
+                <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
+                  Third-party scripts
+                </h2>
+                <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
+                  Injected at serve time — no need to edit your files.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setAddScriptOpen(true)}>
+                <Plus className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
+                Add script
+              </Button>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setAddScriptOpen(true)}>
-              <Plus className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
-              Add script
-            </Button>
+            {scripts.length > 0 ? (
+              <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
+                {scripts.map((script) => (
+                  <ScriptRow key={script.id} script={script} siteId={id!} />
+                ))}
+              </div>
+            ) : (
+              <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-4 tw-py-6 tw-flex tw-flex-col tw-items-center tw-gap-2 tw-text-center">
+                <Code2 className="tw-h-6 tw-w-6 tw-text-muted-foreground" />
+                <p className="tw-text-sm tw-text-muted-foreground">
+                  No scripts yet. Add Google Analytics, GTM, Meta Pixel, or any custom code.
+                </p>
+              </div>
+            )}
           </div>
-          {scripts.length > 0 ? (
-            <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
-              {scripts.map((script) => (
-                <ScriptRow key={script.id} script={script} siteId={id!} />
-              ))}
-            </div>
-          ) : (
-            <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-4 tw-py-6 tw-flex tw-flex-col tw-items-center tw-gap-2 tw-text-center">
-              <Code2 className="tw-h-6 tw-w-6 tw-text-muted-foreground" />
-              <p className="tw-text-sm tw-text-muted-foreground">
-                No scripts yet. Add Google Analytics, GTM, Meta Pixel, or any custom code.
-              </p>
-            </div>
-          )}
         </TabsContent>
 
       </Tabs>

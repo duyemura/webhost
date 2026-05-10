@@ -11,9 +11,15 @@ const createBody = z.object({
   slug: z.string().min(1).max(63).optional(),
 });
 
+export const DOMAIN_RE = /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 const updateBody = z.object({
   name: z.string().min(1).max(100).optional(),
-  custom_domain: z.string().min(1).nullable().optional(),
+  custom_domain: z
+    .string()
+    .regex(DOMAIN_RE, "Enter a valid domain like www.mygym.com.")
+    .nullable()
+    .optional(),
 });
 
 export const sitesRoutes: FastifyPluginAsync = async (app) => {
@@ -98,6 +104,17 @@ export const sitesRoutes: FastifyPluginAsync = async (app) => {
       const newDomain = body.data.custom_domain;
 
       if (newDomain && newDomain !== site.custom_domain) {
+        // Ensure no other site is already using this domain
+        const conflict = await db
+          .selectFrom("sites")
+          .select("id")
+          .where("custom_domain", "=", newDomain)
+          .where("id", "!=", site.id)
+          .executeTakeFirst();
+        if (conflict) {
+          return reply.status(409).send({ error: "Domain is already in use." });
+        }
+
         // Setting a new domain — deprovision old one if any, provision new
         if (site.cloudflare_hostname_id) {
           await deprovisionHostname(site.cloudflare_hostname_id).catch(() => {});

@@ -47,6 +47,7 @@ import {
   deleteFile,
   deleteSite,
   updateSite,
+  publishSite,
   getScripts,
   addScript,
   updateScript,
@@ -765,6 +766,13 @@ export function SiteDetail() {
     },
   });
 
+  const publishMutation = useMutation({
+    mutationFn: () => publishSite(id!),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["sites", id], { ...data, cname_target: site?.cname_target });
+    },
+  });
+
   function handleDrop(files: File[]) {
     const file = files[0];
     if (!file) return;
@@ -873,6 +881,30 @@ export function SiteDetail() {
               />
             </>
           )}
+          {isPublished && (
+            <div className="tw-rounded-lg tw-border tw-border-border tw-p-4 tw-flex tw-items-center tw-justify-between tw-gap-4">
+              <div>
+                <p className="tw-text-sm tw-font-medium tw-text-foreground">
+                  {site.live_published_at ? "Published to live" : "Not published to live"}
+                </p>
+                <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
+                  {site.live_published_at
+                    ? `Your custom domain serves this snapshot. Last published ${new Date(site.live_published_at).toLocaleDateString()}.`
+                    : "Your custom domain will serve files once you publish."}
+                </p>
+              </div>
+              <Button
+                variant={site.live_published_at ? "outline" : "default"}
+                size="sm"
+                isSubmitting={publishMutation.isPending}
+                onClick={() => publishMutation.mutate()}
+                className="tw-shrink-0"
+              >
+                {site.live_published_at ? "Republish" : "Publish to live"}
+              </Button>
+            </div>
+          )}
+
           <div>
             <h2 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-1">
               {isPublished ? "Replace files" : "Upload your site"}

@@ -26,6 +26,7 @@ export interface SitesTable {
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
   published_at: Date | null;
+  live_published_at: Date | null;
 }
 
 export type User = Selectable<UsersTable>;

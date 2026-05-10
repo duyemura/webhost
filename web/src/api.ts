@@ -17,6 +17,7 @@ export interface Site {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  live_published_at: string | null;
 }
 
 export interface SiteFile {
@@ -109,6 +110,10 @@ export const updateSite = (id: string, body: { name?: string; custom_domain?: st
   apiFetch<Site>(`/sites/${id}`, { method: "PATCH", body: JSON.stringify(body) });
 export const deleteSite = (id: string) =>
   apiFetch<void>(`/sites/${id}`, { method: "DELETE" });
+export const publishSite = (id: string) =>
+  apiFetch<Site>(`/sites/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
+export const unpublishSite = (id: string) =>
+  apiFetch<Site>(`/sites/${id}/publish`, { method: "DELETE" });
 
 // Files
 export const getSiteFiles = (id: string) =>

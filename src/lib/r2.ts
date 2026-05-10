@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { config } from "../config.js";
 
@@ -56,6 +57,35 @@ export async function deletePrefix(prefix: string): Promise<void> {
     }
     continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
   } while (continuationToken);
+}
+
+export async function copyPrefix(srcPrefix: string, dstPrefix: string): Promise<number> {
+  const srcFiles = await listFiles(srcPrefix);
+
+  // Copy all source files to destination
+  await Promise.all(
+    srcFiles.map((f) => {
+      const dstKey = dstPrefix + f.key.slice(srcPrefix.length);
+      return r2.send(
+        new CopyObjectCommand({ Bucket, CopySource: `${Bucket}/${f.key}`, Key: dstKey })
+      );
+    })
+  );
+
+  // Delete destination files that no longer exist in source
+  const srcKeys = new Set(srcFiles.map((f) => dstPrefix + f.key.slice(srcPrefix.length)));
+  const dstFiles = await listFiles(dstPrefix);
+  const toDelete = dstFiles.filter((f) => !srcKeys.has(f.key));
+  if (toDelete.length > 0) {
+    await r2.send(
+      new DeleteObjectsCommand({
+        Bucket,
+        Delete: { Objects: toDelete.map((f) => ({ Key: f.key })) },
+      })
+    );
+  }
+
+  return srcFiles.length;
 }
 
 export async function listFiles(prefix: string): Promise<{ key: string; size: number }[]> {

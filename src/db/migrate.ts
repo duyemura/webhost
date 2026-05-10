@@ -51,6 +51,9 @@ const sql = `
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT NOT NULL DEFAULT 'none';
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS cloudflare_hostname_id TEXT;
 
+  -- Phase 4.2: Draft/live split — live slot is what the custom domain serves
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS live_published_at TIMESTAMPTZ;
+
   -- Phase 4.1: Business profile for SEO/structured data injection
   CREATE TABLE IF NOT EXISTS business_profiles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

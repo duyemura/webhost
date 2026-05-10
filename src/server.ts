@@ -15,6 +15,7 @@ import { sitesRoutes } from "./routes/sites.js";
 import { uploadRoutes } from "./routes/upload.js";
 import { scriptsRoutes } from "./routes/scripts.js";
 import { profileRoutes } from "./routes/profile.js";
+import { publishRoutes } from "./routes/publish.js";
 import { siteServer } from "./plugins/site-server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,6 +65,7 @@ await app.register(sitesRoutes);
 await app.register(uploadRoutes);
 await app.register(scriptsRoutes);
 await app.register(profileRoutes);
+await app.register(publishRoutes);
 
 // Serve the built dashboard in production. In dev, Vite runs separately on port 5173.
 const webDist = path.join(__dirname, "..", "web", "dist");

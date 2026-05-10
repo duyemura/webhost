@@ -131,14 +131,15 @@ function buildSeoSnippets(
 
 async function buildSitemap(
   site: Pick<Site, "slug" | "custom_domain">,
-  siteId: string
+  siteId: string,
+  fileBase: string
 ): Promise<string> {
   const base = siteBaseUrl(site);
-  const files = await listFiles(`sites/${siteId}/`);
+  const files = await listFiles(`${fileBase}/`);
   const htmlKeys = files.filter((f) => f.key.endsWith(".html")).map((f) => f.key);
 
   const urls = htmlKeys.map((key) => {
-    const relativePath = key.replace(`sites/${siteId}/`, "");
+    const relativePath = key.replace(`${fileBase}/`, "");
     const loc =
       relativePath === "index.html"
         ? base
@@ -158,13 +159,15 @@ async function buildSitemap(
 async function serveSite(
   site: Pick<Site, "id" | "slug" | "custom_domain">,
   requestUrl: string,
-  reply: any
+  reply: any,
+  slot: "draft" | "live" = "draft"
 ): Promise<void> {
   const requestPath = requestUrl.split("?")[0];
+  const fileBase = slot === "live" ? `live/${site.id}` : `sites/${site.id}`;
 
   // Serve sitemap inline
   if (requestPath === "/sitemap.xml") {
-    const xml = await buildSitemap(site, site.id);
+    const xml = await buildSitemap(site, site.id, fileBase);
     reply.header("Content-Type", "application/xml; charset=utf-8").send(xml);
     return;
   }
@@ -186,7 +189,7 @@ async function serveSite(
 
   const decodedPath = decodeURIComponent(requestPath);
   const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, "").replace(/^\//, "");
-  const base = `sites/${site.id}`;
+  const base = fileBase;
 
   const candidates = [
     `${base}/${safePath}`,
@@ -251,16 +254,16 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
       return;
     }
 
-    // Path 2: custom domain match — owner-provided domain points here
+    // Path 2: custom domain match — serves the live (published) slot
     const site = await db
       .selectFrom("sites")
-      .select(["id", "slug", "custom_domain", "published_at"])
+      .select(["id", "slug", "custom_domain", "published_at", "live_published_at"])
       .where("custom_domain", "=", hostname)
       .executeTakeFirst();
 
-    if (!site || !site.published_at) return; // not a known site — fall through to API/dashboard
+    if (!site || !site.live_published_at) return; // not a known site or not published to live
 
-    await serveSite(site, req.url, reply);
+    await serveSite(site, req.url, reply, "live");
   });
 };
 

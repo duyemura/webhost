@@ -15,6 +15,9 @@ import {
   ArrowLeft,
   Monitor,
   Smartphone,
+  Import,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Button,
@@ -54,6 +57,7 @@ import {
   getProfile,
   saveProfile,
   generateSite,
+  importFromUrl,
   THEME_PRESETS,
   THEME_PRESET_COLORS,
   THEME_PRESET_LABELS,
@@ -65,6 +69,7 @@ import {
   type BusinessProfile,
   type SiteSpec,
   type Theme,
+  type ImportSummary,
   DEFAULT_THEME,
   updateSpec,
   updateTheme,
@@ -646,6 +651,13 @@ interface AiGenerateSectionProps {
   isPending: boolean;
   error: string | null;
   onGenerate: () => void;
+  // Import from URL
+  importUrl: string;
+  setImportUrl: (v: string) => void;
+  importPending: boolean;
+  importError: string | null;
+  importSummary: ImportSummary | null;
+  onImport: () => void;
 }
 
 function GenerateForm({
@@ -705,6 +717,136 @@ function GenerateForm({
   );
 }
 
+function ImportFromUrlForm({
+  importUrl, setImportUrl, genTheme, setGenTheme,
+  isPending, error, summary, onImport,
+}: {
+  importUrl: string;
+  setImportUrl: (v: string) => void;
+  genTheme: ThemePreset;
+  setGenTheme: (v: ThemePreset) => void;
+  isPending: boolean;
+  error: string | null;
+  summary: ImportSummary | null;
+  onImport: () => void;
+}) {
+  return (
+    <div className="tw-space-y-4">
+      <div className="tw-space-y-1.5">
+        <Label htmlFor="import-url">Your current website URL</Label>
+        <p className="tw-text-xs tw-text-muted-foreground">
+          We'll scan every page we find and rebuild the structure using our block system.
+        </p>
+        <Input
+          id="import-url"
+          type="url"
+          placeholder="https://yourgym.com"
+          value={importUrl}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setImportUrl(e.target.value)}
+          disabled={isPending}
+        />
+      </div>
+
+      <div>
+        <p className="tw-text-sm tw-font-medium tw-mb-2">Theme</p>
+        <div className="tw-flex tw-flex-wrap tw-gap-2">
+          {THEME_PRESETS.map(preset => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setGenTheme(preset)}
+              className={`tw-flex tw-items-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-full tw-text-sm tw-font-medium tw-border tw-transition-all ${
+                genTheme === preset
+                  ? "tw-border-foreground tw-bg-foreground tw-text-background"
+                  : "tw-border-border tw-text-foreground hover:tw-border-foreground/50"
+              }`}
+            >
+              <span
+                className="tw-w-3 tw-h-3 tw-rounded-full tw-shrink-0"
+                style={{ background: THEME_PRESET_COLORS[preset] }}
+              />
+              {THEME_PRESET_LABELS[preset]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <p className="tw-text-sm tw-text-error">{error}</p>
+      )}
+
+      {isPending && (
+        <div className="tw-rounded-lg tw-bg-muted tw-p-4 tw-space-y-2">
+          <p className="tw-text-sm tw-font-medium tw-text-foreground">Scanning your site…</p>
+          <div className="tw-space-y-1 tw-text-xs tw-text-muted-foreground">
+            <p>Fetching pages and extracting content structure</p>
+            <p>Mapping sections to block types with AI</p>
+            <p>This usually takes 20–40 seconds</p>
+          </div>
+        </div>
+      )}
+
+      {summary && !isPending && (
+        <div className="tw-rounded-lg tw-border tw-border-border tw-p-4 tw-space-y-3">
+          <div className="tw-flex tw-items-center tw-gap-2">
+            <CheckCircle2 className="tw-h-4 tw-w-4 tw-text-success" />
+            <p className="tw-text-sm tw-font-medium tw-text-foreground">Import complete</p>
+          </div>
+          <div className="tw-grid tw-grid-cols-2 tw-gap-2 tw-text-sm">
+            <div>
+              <p className="tw-text-muted-foreground">Pages imported</p>
+              <p className="tw-font-semibold">{summary.pages_generated}</p>
+            </div>
+            <div>
+              <p className="tw-text-muted-foreground">Blocks created</p>
+              <p className="tw-font-semibold">{summary.blocks_generated}</p>
+            </div>
+            <div>
+              <p className="tw-text-muted-foreground">Pages scanned</p>
+              <p className="tw-font-semibold">{summary.pages_scraped}</p>
+            </div>
+            <div>
+              <p className="tw-text-muted-foreground">Sections found</p>
+              <p className="tw-font-semibold">{summary.sections_found}</p>
+            </div>
+          </div>
+          {summary.gaps.length > 0 && (
+            <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-3 tw-space-y-1.5">
+              <div className="tw-flex tw-items-center tw-gap-1.5">
+                <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning" />
+                <p className="tw-text-xs tw-font-medium tw-text-warning">
+                  {summary.gaps.length} section{summary.gaps.length > 1 ? "s" : ""} couldn't be fully mapped
+                </p>
+              </div>
+              <ul className="tw-space-y-1">
+                {summary.gaps.map((gap, i) => (
+                  <li key={i} className="tw-text-xs tw-text-muted-foreground tw-flex tw-gap-1.5">
+                    <span className="tw-shrink-0">•</span>
+                    <span>{gap}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="tw-text-xs tw-text-muted-foreground">
+            Switch to the Editor tab to review and refine your imported content.
+          </p>
+        </div>
+      )}
+
+      <Button
+        onClick={onImport}
+        disabled={!importUrl.trim() || isPending}
+        isSubmitting={isPending}
+        className="tw-w-full tw-gap-2"
+      >
+        <Import className="tw-h-4 tw-w-4" />
+        {isPending ? "Importing…" : "Import site"}
+      </Button>
+    </div>
+  );
+}
+
 function blockSummary(section: Record<string, unknown>): string {
   const headline =
     (section.headline as string | undefined) ??
@@ -725,6 +867,7 @@ function AiGenerateSection({
   genPrompt, setGenPrompt, genTheme, setGenTheme,
   genRegenOpen, setGenRegenOpen,
   isPending, error, onGenerate,
+  importUrl, setImportUrl, importPending, importError, importSummary, onImport,
 }: AiGenerateSectionProps) {
   const specData = spec as { version: number; pages: { slug: string; title: string; sections: Record<string, unknown>[] }[] } | null;
   const themeData = theme as { colors?: { primary?: string } } | null;
@@ -743,16 +886,33 @@ function AiGenerateSection({
     return (
       <div className="tw-space-y-4">
         <div>
-          <h2 className="tw-text-base tw-font-semibold">Generate your site with AI</h2>
+          <h2 className="tw-text-base tw-font-semibold">Build your site</h2>
           <p className="tw-text-sm tw-text-muted-foreground tw-mt-1">
-            Describe your business and what you want. Claude will build a complete multi-page site instantly.
+            Start from scratch with AI, or import your existing website.
           </p>
         </div>
-        <GenerateForm
-          genPrompt={genPrompt} setGenPrompt={setGenPrompt}
-          genTheme={genTheme} setGenTheme={setGenTheme}
-          isPending={isPending} error={error} onGenerate={onGenerate}
-        />
+        <Tabs defaultValue="generate">
+          <TabsList className="tw-w-full">
+            <TabsTrigger value="generate" className="tw-flex-1">Generate from scratch</TabsTrigger>
+            <TabsTrigger value="import" className="tw-flex-1">Import existing site</TabsTrigger>
+          </TabsList>
+          <TabsContent value="generate" className="tw-mt-4">
+            <GenerateForm
+              genPrompt={genPrompt} setGenPrompt={setGenPrompt}
+              genTheme={genTheme} setGenTheme={setGenTheme}
+              isPending={isPending} error={error} onGenerate={onGenerate}
+            />
+          </TabsContent>
+          <TabsContent value="import" className="tw-mt-4">
+            <ImportFromUrlForm
+              importUrl={importUrl} setImportUrl={setImportUrl}
+              genTheme={genTheme} setGenTheme={setGenTheme}
+              isPending={importPending} error={importError}
+              summary={importSummary}
+              onImport={onImport}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }
@@ -980,6 +1140,8 @@ export function SiteDetail() {
   const [genPrompt, setGenPrompt] = useState("");
   const [genTheme, setGenTheme] = useState<ThemePreset>("bold");
   const [genRegenOpen, setGenRegenOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [livePreview, setLivePreview] = useState<{ spec: SiteSpec; theme: Theme; page: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -1026,6 +1188,16 @@ export function SiteDetail() {
     onSuccess: (data) => {
       queryClient.setQueryData(["sites", id], { ...data, cname_target: site?.cname_target });
       setGenRegenOpen(false);
+      refreshPreview();
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: () => importFromUrl(id!, { url: importUrl, theme_preset: genTheme }),
+    onSuccess: (data) => {
+      const { _import_summary, ...siteData } = data;
+      queryClient.setQueryData(["sites", id], { ...siteData, cname_target: site?.cname_target });
+      setImportSummary(_import_summary);
       refreshPreview();
     },
   });
@@ -1169,6 +1341,12 @@ export function SiteDetail() {
                 isPending={generateMutation.isPending}
                 error={generateMutation.error?.message ?? null}
                 onGenerate={() => generateMutation.mutate()}
+                importUrl={importUrl}
+                setImportUrl={setImportUrl}
+                importPending={importMutation.isPending}
+                importError={importMutation.error?.message ?? null}
+                importSummary={importSummary}
+                onImport={() => importMutation.mutate()}
               />
             </TabsContent>
 

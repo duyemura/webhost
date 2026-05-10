@@ -158,6 +158,18 @@ export const THEME_PRESET_LABELS: Record<ThemePreset, string> = {
 export const generateSite = (siteId: string, body: { prompt: string; theme_preset?: string }) =>
   apiFetch<Site>(`/sites/${siteId}/generate`, { method: "POST", body: JSON.stringify(body) });
 
+export interface ImportSummary {
+  source_url: string;
+  pages_scraped: number;
+  sections_found: number;
+  pages_generated: number;
+  blocks_generated: number;
+  gaps: string[];
+}
+
+export const importFromUrl = (siteId: string, body: { url: string; theme_preset?: string }) =>
+  apiFetch<Site & { _import_summary: ImportSummary }>(`/sites/${siteId}/import-url`, { method: "POST", body: JSON.stringify(body) });
+
 export interface BusinessProfile {
   id?: string;
   site_id?: string;

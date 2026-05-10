@@ -16,6 +16,7 @@ import { profileRoutes } from "./routes/profile.js";
 import { publishRoutes } from "./routes/publish.js";
 import { specRoutes } from "./routes/spec.js";
 import { generateRoutes } from "./routes/generate.js";
+import { importRoutes } from "./routes/import.js";
 import { templatesRoutes } from "./routes/templates.js";
 import { assetsRoutes } from "./routes/assets.js";
 import { siteServer } from "./plugins/site-server.js";
@@ -67,6 +68,7 @@ await app.register(profileRoutes);
 await app.register(publishRoutes);
 await app.register(specRoutes);
 await app.register(generateRoutes);
+await app.register(importRoutes);
 await app.register(templatesRoutes);
 await app.register(assetsRoutes);
 

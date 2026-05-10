@@ -1058,6 +1058,8 @@ export function SiteDetail() {
                   siteId={id!}
                   initialSpec={site.spec as SiteSpec}
                   initialTheme={(site.theme ?? DEFAULT_THEME) as Theme}
+                  themePreset={site.theme_preset}
+                  publishedTheme={site.published_theme}
                   iframeRef={iframeRef}
                   onLivePreviewChange={(spec, theme, page) => setLivePreview({ spec, theme, page })}
                 />

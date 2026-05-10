@@ -22,6 +22,8 @@ export interface Site {
   spec: unknown | null;
   theme: unknown | null;
   generation_prompt: string | null;
+  theme_preset: string | null;
+  published_theme: unknown | null;
 }
 
 function getToken(): string | null {
@@ -215,8 +217,12 @@ export const DEFAULT_THEME: Theme = {
 
 export const updateSpec = (id: string, spec: SiteSpec) =>
   apiFetch<Site>(`/sites/${id}/spec`, { method: "PUT", body: JSON.stringify(spec) });
-export const updateTheme = (id: string, theme: Theme) =>
-  apiFetch<Site>(`/sites/${id}/theme`, { method: "PUT", body: JSON.stringify(theme) });
+export const updateTheme = (id: string, theme: Theme, themePreset?: string) =>
+  apiFetch<Site>(`/sites/${id}/theme`, { method: "PUT", body: JSON.stringify({ theme, theme_preset: themePreset }) });
+export const revertThemeToPublished = (id: string) =>
+  apiFetch<Site>(`/sites/${id}/theme/revert-to-published`, { method: "POST" });
+export const getPresets = () =>
+  apiFetch<Record<string, Theme>>("/presets");
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 

@@ -55,7 +55,12 @@ export const publishRoutes: FastifyPluginAsync = async (app) => {
     const now = new Date();
     const updated = await db
       .updateTable("sites")
-      .set({ live_published_at: now, updated_at: now, ...(site.published_at ? {} : { published_at: now }) })
+      .set({
+        live_published_at: now,
+        updated_at: now,
+        published_theme: site.theme ? JSON.stringify(site.theme) : null,
+        ...(site.published_at ? {} : { published_at: now }),
+      })
       .where("id", "=", id)
       .returningAll()
       .executeTakeFirstOrThrow();

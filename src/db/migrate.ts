@@ -62,6 +62,10 @@ const sql = `
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme JSONB;
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS generation_prompt TEXT;
 
+  -- Phase 6: Theme lineage + publish snapshot
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme_preset TEXT;
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS published_theme JSONB;
+
   -- Phase 4.1: Business profile for SEO/structured data injection
   CREATE TABLE IF NOT EXISTS business_profiles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

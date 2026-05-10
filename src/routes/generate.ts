@@ -171,6 +171,7 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
       .set({
         spec: JSON.stringify(parsed.data),
         theme: JSON.stringify(theme),
+        theme_preset: body.data.theme_preset ?? null,
         generation_prompt: body.data.prompt,
         updated_at: now,
         draft_updated_at: now,

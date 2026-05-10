@@ -1,28 +1,34 @@
 import React, { useState, useEffect, useRef, type RefObject } from "react";
 import { Button, Badge } from "@pushpress/pushpress-ui";
 import { Plus, X, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { BlockList } from "./BlockList";
 import { AddBlockDialog } from "./AddBlockDialog";
 import { ThemeEditor } from "./ThemeEditor";
 import { addPage, removePage } from "../../lib/spec";
-import { updateSpec, updateTheme, type SiteSpec, type Theme } from "../../api";
+import { updateSpec, updateTheme, revertThemeToPublished, getPresets, THEME_PRESET_LABELS, type ThemePreset, type SiteSpec, type Theme } from "../../api";
 
 interface BlockEditorProps {
   siteId: string;
   initialSpec: SiteSpec;
   initialTheme: Theme;
+  themePreset?: string | null;
+  publishedTheme?: unknown;
   iframeRef: RefObject<HTMLIFrameElement | null>;
   onLivePreviewChange?: (spec: SiteSpec, theme: Theme, activePage: string) => void;
 }
 
-export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef, onLivePreviewChange }: BlockEditorProps) {
+export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, publishedTheme, iframeRef, onLivePreviewChange }: BlockEditorProps) {
   const queryClient = useQueryClient();
 
   const [localSpec, setLocalSpec] = useState<SiteSpec>(initialSpec);
   const [localTheme, setLocalTheme] = useState<Theme>(initialTheme);
   const [savedSpec, setSavedSpec] = useState<SiteSpec>(initialSpec);
   const [savedTheme, setSavedTheme] = useState<Theme>(initialTheme);
+
+  const { data: presets, isError: presetsError } = useQuery({ queryKey: ["presets"], queryFn: getPresets, staleTime: Infinity });
+  const activePreset = presets && themePreset ? presets[themePreset] : undefined;
+  const presetLabel = themePreset ? (THEME_PRESET_LABELS[themePreset as ThemePreset] ?? themePreset) : undefined;
   const [activePage, setActivePage] = useState("index");
   const [addBlockOpen, setAddBlockOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -47,7 +53,7 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef, onLi
       const specChanged = localSpec !== savedSpec;
       const themeChanged = localTheme !== savedTheme;
       if (specChanged) await updateSpec(siteId, localSpec);
-      if (themeChanged) await updateTheme(siteId, localTheme);
+      if (themeChanged) await updateTheme(siteId, localTheme, themePreset ?? undefined);
     },
     onSuccess: () => {
       setSavedSpec(localSpec);
@@ -55,6 +61,20 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef, onLi
       queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
       iframeRef.current?.contentWindow?.location.reload();
     },
+  });
+
+  const [revertError, setRevertError] = useState<string | null>(null);
+  const revertToPublishedMutation = useMutation({
+    mutationFn: () => revertThemeToPublished(siteId),
+    onSuccess: (updated) => {
+      const newTheme = updated.theme as Theme;
+      setLocalTheme(newTheme);
+      setSavedTheme(newTheme);
+      setRevertError(null);
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
+      iframeRef.current?.contentWindow?.location.reload();
+    },
+    onError: (err) => setRevertError((err as Error).message),
   });
 
   function handleAddPage() {
@@ -177,6 +197,14 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef, onLi
         onAdd={setLocalSpec}
       />
 
+      {presetsError && (
+        <p className="tw-text-xs tw-text-error">Failed to load theme presets. Reset-to-preset will be unavailable.</p>
+      )}
+
+      {revertError && (
+        <p className="tw-text-xs tw-text-error">{revertError}</p>
+      )}
+
       {/* Theme panel (collapsible) */}
       <div className="tw-border tw-border-border tw-rounded-lg">
         <button
@@ -189,7 +217,15 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef, onLi
 
         {themeOpen && (
           <div className="tw-px-4 tw-pb-4 tw-border-t tw-border-border">
-            <ThemeEditor theme={localTheme} onChange={setLocalTheme} />
+            <ThemeEditor
+              theme={localTheme}
+              onChange={setLocalTheme}
+              preset={activePreset}
+              presetName={presetLabel}
+              publishedTheme={publishedTheme as Theme | null}
+              onRevertToPublished={() => revertToPublishedMutation.mutate()}
+              isRevertingToPublished={revertToPublishedMutation.isPending}
+            />
           </div>
         )}
       </div>

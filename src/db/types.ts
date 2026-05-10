@@ -31,6 +31,8 @@ export interface SitesTable {
   spec: unknown | null;
   theme: unknown | null;
   generation_prompt: string | null;
+  theme_preset: string | null;
+  published_theme: unknown | null;
 }
 
 export type User = Selectable<UsersTable>;

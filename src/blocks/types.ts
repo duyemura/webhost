@@ -21,6 +21,7 @@ export interface Theme {
     heading_weight: string;
     heading_transform: string;
     heading_tracking: string;
+    heading_scale?: "normal" | "large" | "xl";
   };
   shape: { radius: "none" | "sm" | "md" | "lg" | "full" };
   spacing: { section_padding: "compact" | "normal" | "loose" };

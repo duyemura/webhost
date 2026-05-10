@@ -9,6 +9,39 @@ interface FeaturesFields {
   items: { icon?: string; title: string; description: string }[];
 }
 
+const ICON_MAP: Record<string, string> = {
+  star: "★", award: "★", trophy: "🏆", medal: "🥇",
+  bolt: "⚡", lightning: "⚡", flash: "⚡",
+  heart: "♥", love: "♥",
+  check: "✓", checkmark: "✓",
+  muscle: "💪", flex: "💪", strength: "💪",
+  fire: "🔥", flame: "🔥",
+  clock: "⏱", time: "⏱",
+  users: "👥", people: "👥", group: "👥", community: "👥",
+  dumbbell: "🏋", weights: "🏋",
+  target: "🎯", goal: "🎯",
+  leaf: "🌿", nature: "🌿",
+  shield: "🛡", protect: "🛡",
+  running: "🏃", run: "🏃",
+  yoga: "🧘", meditation: "🧘",
+  boxing: "🥊", glove: "🥊",
+  bike: "🚴", cycle: "🚴",
+  swim: "🏊",
+  map: "📍", location: "📍",
+  calendar: "📅", schedule: "📅",
+  phone: "📞",
+  email: "✉",
+  dollar: "💲", money: "💲", price: "💲",
+  chart: "📈", growth: "📈",
+  lock: "🔒", security: "🔒",
+  support: "🤝", handshake: "🤝",
+};
+
+function resolveIcon(icon: string): string {
+  if ([...icon].length <= 2 || /[^\x00-\x7F]/.test(icon)) return icon;
+  return ICON_MAP[icon.toLowerCase()] ?? icon[0]?.toUpperCase() ?? icon;
+}
+
 export function render(section: Record<string, unknown>, _theme: Theme, profile: BusinessProfile | null): string {
   const s = section as unknown as FeaturesFields;
   const cols = s.items.length <= 3 ? s.items.length : 3;
@@ -22,7 +55,7 @@ export function render(section: Record<string, unknown>, _theme: Theme, profile:
     </div>` : ""}
     <div class="${gridCls}">
       ${s.items.map(item => `<div class="block-features__item">
-        ${item.icon ? `<div class="block-features__icon">${esc(item.icon)}</div>` : ""}
+        ${item.icon ? `<div class="block-features__icon">${esc(resolveIcon(item.icon))}</div>` : ""}
         <h3>${esc(interpolate(item.title, profile))}</h3>
         <p>${esc(interpolate(item.description, profile))}</p>
       </div>`).join("\n")}

@@ -26,9 +26,10 @@ export function render(section: Record<string, unknown>, _theme: Theme, profile:
 
   return `<section class="block-about">
   <div class="container">
-    <div class="block-about__inner" style="${imgLeft ? "direction:rtl" : ""}">
-      ${imgLeft ? `${imageEl}${textEl}` : `${textEl}${imageEl}`}
-    </div>
+    ${s.image_url
+      ? `<div class="block-about__inner" style="${imgLeft ? "direction:rtl" : ""}">${imgLeft ? `${imageEl}${textEl}` : `${textEl}${imageEl}`}</div>`
+      : textEl
+    }
   </div>
 </section>`;
 }

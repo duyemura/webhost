@@ -14,7 +14,14 @@ const PADDING_MAP: Record<Theme["spacing"]["section_padding"], string> = {
   loose: "8rem 0",
 };
 
+const SCALE_MAP = {
+  normal: { h1: "clamp(2rem, 5vw, 3.5rem)", h2: "clamp(1.5rem, 3.5vw, 2.5rem)", h3: "clamp(1.25rem, 2.5vw, 1.75rem)" },
+  large:  { h1: "clamp(2.5rem, 5.5vw, 4.5rem)", h2: "clamp(1.75rem, 4vw, 3.25rem)", h3: "clamp(1.25rem, 2.5vw, 2rem)" },
+  xl:     { h1: "clamp(3rem, 8vw, 7rem)", h2: "clamp(2rem, 5.5vw, 5rem)", h3: "clamp(1.5rem, 3vw, 2.5rem)" },
+};
+
 export function themeToCSS(theme: Theme): string {
+  const scale = SCALE_MAP[theme.typography.heading_scale ?? "normal"];
   return `:root {
   --color-primary: ${theme.colors.primary};
   --color-primary-fg: ${theme.colors.primary_foreground};
@@ -34,13 +41,16 @@ export function themeToCSS(theme: Theme): string {
   --heading-tracking: ${theme.typography.heading_tracking === "tight" ? "-0.025em" : theme.typography.heading_tracking === "wide" ? "0.05em" : "0"};
   --radius: ${RADIUS_MAP[theme.shape.radius]};
   --section-padding: ${PADDING_MAP[theme.spacing.section_padding]};
+  --h1-size: ${scale.h1};
+  --h2-size: ${scale.h2};
+  --h3-size: ${scale.h3};
 }`;
 }
 
 export function googleFontsUrl(theme: Theme): string {
   const fonts = new Set([theme.typography.heading_font, theme.typography.body_font]);
   const families = [...fonts]
-    .map((f) => `family=${encodeURIComponent(f)}:wght@400;600;700;800`)
+    .map((f) => `family=${encodeURIComponent(f)}:wght@400;600;700;800;900`)
     .join("&");
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }

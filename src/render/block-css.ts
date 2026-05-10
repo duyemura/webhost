@@ -72,13 +72,13 @@ export const BLOCK_CSS = `
 .block-hero {
   padding: var(--section-padding);
   background: var(--color-muted);
-  min-height: 60vh;
+  min-height: 70vh;
   display: flex;
   align-items: center;
 }
 .block-hero--dark {
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
+  background: var(--color-secondary);
+  color: var(--color-secondary-fg);
 }
 .block-hero--image {
   background-size: cover;
@@ -89,17 +89,22 @@ export const BLOCK_CSS = `
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.55);
 }
 .block-hero--image .container { position: relative; z-index: 1; color: #fff; }
-.block-hero__content { max-width: 680px; }
+.block-hero__content { max-width: 800px; }
 .block-hero__sub {
   font-size: 1.25rem;
   color: var(--color-muted-fg);
-  margin: 1.25rem 0 2rem;
+  margin: 1.5rem 0 2.5rem;
+  max-width: 60ch;
+  font-family: var(--font-body);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .block-hero--dark .block-hero__sub,
-.block-hero--image .block-hero__sub { color: rgba(255,255,255,0.8); }
+.block-hero--image .block-hero__sub { color: rgba(255,255,255,0.75); }
 .block-hero__actions { display: flex; gap: 1rem; flex-wrap: wrap; }
 
 /* ── features ── */
@@ -149,6 +154,12 @@ export const BLOCK_CSS = `
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.block-programs__card:hover {
+  box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+  transform: translateY(-2px);
 }
 .block-programs__card-body { padding: 1.5rem; flex: 1; display: flex; flex-direction: column; }
 .block-programs__card h3 { margin-bottom: 0.5rem; }
@@ -174,6 +185,7 @@ export const BLOCK_CSS = `
   padding: 2rem;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 .block-pricing__card--featured {
   border-color: var(--color-primary);
@@ -207,15 +219,16 @@ export const BLOCK_CSS = `
 .block-testimonials__card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
   border-radius: var(--radius);
-  padding: 2rem;
+  padding: 2rem 2rem 2rem 2.25rem;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 .block-testimonials__quote {
   font-size: 1.0625rem;
-  line-height: 1.7;
+  line-height: 1.75;
   color: var(--color-fg);
   margin-bottom: 1.5rem;
-  font-style: italic;
 }
 .block-testimonials__author { display: flex; align-items: center; gap: 0.75rem; }
 .block-testimonials__avatar {

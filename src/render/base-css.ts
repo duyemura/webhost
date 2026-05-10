@@ -36,9 +36,9 @@ h1, h2, h3, h4, h5, h6 {
   color: inherit;
 }
 
-h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
-h2 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); }
-h3 { font-size: clamp(1.25rem, 2.5vw, 1.75rem); }
+h1 { font-size: var(--h1-size); }
+h2 { font-size: var(--h2-size); }
+h3 { font-size: var(--h3-size); }
 h4 { font-size: 1.25rem; }
 
 p { max-width: 70ch; }
@@ -97,11 +97,21 @@ p { max-width: 70ch; }
 .section-label {
   font-size: 0.8125rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-primary);
   margin-bottom: 0.75rem;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.section-label::before {
+  content: '';
+  display: inline-block;
+  width: 1.5rem;
+  height: 2px;
+  background: var(--color-primary);
+  flex-shrink: 0;
 }
 
 .section-header {

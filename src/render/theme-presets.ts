@@ -4,7 +4,7 @@ const bold: Theme = {
   colors: {
     primary: "#e63946",
     primary_foreground: "#ffffff",
-    secondary: "#111827",
+    secondary: "#111111",
     secondary_foreground: "#ffffff",
     background: "#ffffff",
     foreground: "#111111",
@@ -14,10 +14,17 @@ const bold: Theme = {
     border: "#e5e7eb",
     surface: "#f9fafb",
   },
-  typography: { heading_font: "Inter", body_font: "Inter", heading_weight: "800", heading_transform: "none", heading_tracking: "tight" },
-  shape: { radius: "md" },
+  typography: {
+    heading_font: "Barlow Condensed",
+    body_font: "Inter",
+    heading_weight: "900",
+    heading_transform: "uppercase",
+    heading_tracking: "tight",
+    heading_scale: "xl",
+  },
+  shape: { radius: "none" },
   spacing: { section_padding: "normal" },
-  style_hint: "bold energetic crossfit",
+  style_hint: "bold energetic crossfit strength gym",
 };
 
 const professional: Theme = {
@@ -34,10 +41,17 @@ const professional: Theme = {
     border: "#e2e8f0",
     surface: "#f8fafc",
   },
-  typography: { heading_font: "Inter", body_font: "Inter", heading_weight: "700", heading_transform: "none", heading_tracking: "tight" },
+  typography: {
+    heading_font: "Playfair Display",
+    body_font: "Inter",
+    heading_weight: "700",
+    heading_transform: "none",
+    heading_tracking: "tight",
+    heading_scale: "large",
+  },
   shape: { radius: "sm" },
   spacing: { section_padding: "normal" },
-  style_hint: "professional corporate clean",
+  style_hint: "professional corporate clean elegant",
 };
 
 const warm: Theme = {
@@ -54,30 +68,44 @@ const warm: Theme = {
     border: "#fed7aa",
     surface: "#fff7ed",
   },
-  typography: { heading_font: "Inter", body_font: "Inter", heading_weight: "700", heading_transform: "none", heading_tracking: "normal" },
+  typography: {
+    heading_font: "Nunito",
+    body_font: "Nunito",
+    heading_weight: "800",
+    heading_transform: "none",
+    heading_tracking: "normal",
+    heading_scale: "large",
+  },
   shape: { radius: "lg" },
   spacing: { section_padding: "normal" },
-  style_hint: "warm welcoming community friendly",
+  style_hint: "warm welcoming community friendly yoga wellness",
 };
 
 const dark: Theme = {
   colors: {
-    primary: "#ffffff",
-    primary_foreground: "#111827",
-    secondary: "#374151",
+    primary: "#e63946",
+    primary_foreground: "#ffffff",
+    secondary: "#1c1c1c",
     secondary_foreground: "#ffffff",
-    background: "#111827",
+    background: "#111111",
     foreground: "#f9fafb",
-    muted: "#1f2937",
+    muted: "#1a1a1a",
     muted_foreground: "#9ca3af",
-    accent: "#f9fafb",
-    border: "#374151",
-    surface: "#1f2937",
+    accent: "#e63946",
+    border: "#2a2a2a",
+    surface: "#1c1c1c",
   },
-  typography: { heading_font: "Inter", body_font: "Inter", heading_weight: "800", heading_transform: "none", heading_tracking: "tight" },
-  shape: { radius: "md" },
-  spacing: { section_padding: "normal" },
-  style_hint: "dark premium upscale sleek",
+  typography: {
+    heading_font: "Barlow Condensed",
+    body_font: "Inter",
+    heading_weight: "900",
+    heading_transform: "uppercase",
+    heading_tracking: "tight",
+    heading_scale: "xl",
+  },
+  shape: { radius: "none" },
+  spacing: { section_padding: "loose" },
+  style_hint: "dark premium strength gym athletic intense",
 };
 
 const minimal: Theme = {
@@ -94,10 +122,17 @@ const minimal: Theme = {
     border: "#e5e7eb",
     surface: "#f9fafb",
   },
-  typography: { heading_font: "Inter", body_font: "Inter", heading_weight: "600", heading_transform: "none", heading_tracking: "normal" },
+  typography: {
+    heading_font: "DM Sans",
+    body_font: "DM Sans",
+    heading_weight: "700",
+    heading_transform: "none",
+    heading_tracking: "tight",
+    heading_scale: "large",
+  },
   shape: { radius: "none" },
   spacing: { section_padding: "loose" },
-  style_hint: "minimal clean zen simple",
+  style_hint: "minimal clean zen simple pilates studio",
 };
 
 const energetic: Theme = {
@@ -114,10 +149,17 @@ const energetic: Theme = {
     border: "#bbf7d0",
     surface: "#f0fdf4",
   },
-  typography: { heading_font: "Inter", body_font: "Inter", heading_weight: "700", heading_transform: "none", heading_tracking: "tight" },
-  shape: { radius: "lg" },
+  typography: {
+    heading_font: "Montserrat",
+    body_font: "Inter",
+    heading_weight: "800",
+    heading_transform: "uppercase",
+    heading_tracking: "tight",
+    heading_scale: "large",
+  },
+  shape: { radius: "md" },
   spacing: { section_padding: "normal" },
-  style_hint: "energetic health outdoor fitness",
+  style_hint: "energetic health outdoor fitness running cycling",
 };
 
 export const THEME_PRESETS: Record<string, Theme> = {

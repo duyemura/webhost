@@ -201,6 +201,89 @@ Wire everything together and verify the full owner journey end-to-end.
 
 ---
 
+## Phase 3.5 — Guided publish experience
+
+**Goal:** Publish feels like a deliberate, trustworthy moment — not a silent button click. The owner knows exactly what's going live, feels confident the site is ready, and sees evidence that the platform is doing thoughtful work on their behalf.
+
+The publish flow replaces the current one-click button with a multi-step modal that runs pre-flight checks, gives honest feedback on what's ready and what's missing, then confirms success with a clear summary. Nothing blocks publishing — the checks are advisory, not gates.
+
+---
+
+### Step 3.5.1 — Pre-flight checks
+
+Before rendering anything, evaluate the site's readiness across three categories and surface the results to the owner.
+
+**Content checks**
+- Does the site have at least one page with content? (hero block or equivalent)
+- Are page titles set and meaningful (not empty or placeholder text)?
+- Is there at least one way to contact the business (phone, email, or contact page)?
+
+**Business info checks**
+- Is the business name filled in?
+- Is a description set? (powers meta description and OG description)
+- Is there address or location data? (enables Google Maps / schema.org)
+
+**SEO readiness**
+- Will every page have a `<title>` tag?
+- Will every page have a `<meta description>`? (requires business description to be set)
+- Are Open Graph tags in place? (og:title, og:description, og:url)
+- Is there a `sitemap.xml`?
+
+Display these as a checklist with pass / advisory / missing states. Passed items feel good; advisory items have a one-line tip; missing items are honest but not alarming. Owner can choose to fix them now or proceed anyway.
+
+---
+
+### Step 3.5.2 — Confirm publish intent
+
+After the checklist, show a brief summary of what's about to go live:
+
+- Site name and live URL (`{slug}.onboardagent.com` or custom domain if set)
+- Number of pages being published
+- Any advisory items with a short "You can fix this later" note
+
+Include a primary "Publish site" button and a secondary "Go back and fix" link. The tone should feel like a competent assistant, not a warning system.
+
+---
+
+### Step 3.5.3 — Live publishing with progress feedback
+
+When the owner clicks "Publish site", show real progress instead of a spinner:
+
+1. **Rendering pages** — "Building your Home page…", "Building your Contact page…" (per page, with page title)
+2. **Generating sitemap** — "Creating sitemap.xml so search engines can find every page…"
+3. **Publishing** — "Sending files to Cloudflare…" (or equivalent infrastructure note)
+4. **Done** — Celebration moment: "Your site is live." with the live URL and a big "Open site" button
+
+Each step completes before the next begins. The copy at each step should reinforce that the platform is doing real, thoughtful work — not just copying files.
+
+---
+
+### Step 3.5.4 — Post-publish confirmation
+
+After success, show a summary card:
+
+- Live URL (large, copyable, with "Open" button)
+- Pages published (list with titles)
+- What's automatically included: "We've added search engine tags, a sitemap, and social sharing previews to every page."
+- If custom domain is set: domain + SSL status
+- If any advisory items were flagged: a short "Next steps" section with 1–2 suggested improvements
+
+This is the moment the owner feels proud. The copy and design should match that.
+
+---
+
+### Step 3.5.5 — Publish on re-generate / block edit
+
+Publishing is also triggered (or suggested) automatically after:
+- AI re-generation — show "Your site has been regenerated. Publish to make changes live." with a shortcut to the publish flow
+- Block editor save — if draft differs from live, show the "Publish changes" button in the header, which runs the same guided flow (abbreviated — skip the full checklist on re-publish, just confirm + progress)
+
+---
+
+**Done when:** Owner clicks "Publish" and comes away feeling like the platform did something real for them — not just copied files to a server.
+
+---
+
 ## Phase 4 — Site retrofit + optimization suite
 
 **Goal:** Owner clicks one button and their AI-generated site is audited and improved across every dimension that affects findability, shareability, and lead conversion — without a redesign.

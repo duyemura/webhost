@@ -818,16 +818,14 @@ export function SiteDetail() {
           <TabsTrigger value="files">
             Files{files.length > 0 && ` (${files.length})`}
           </TabsTrigger>
-          <TabsTrigger value="seo">SEO</TabsTrigger>
           <TabsTrigger value="scripts">
             Scripts{scripts.length > 0 && ` (${scripts.length})`}
           </TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
         <TabsContent value="overview" className="tw-space-y-6">
-          {isPublished ? (
+          {isPublished && (
             <>
               <div>
                 <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
@@ -842,16 +840,40 @@ export function SiteDetail() {
                 cnameTarget={site.cname_target}
               />
             </>
-          ) : (
-            <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-6 tw-py-10 tw-text-center">
-              <p className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-1">
-                No files yet
-              </p>
-              <p className="tw-text-xs tw-text-muted-foreground">
-                Upload a zip in the Files tab to publish your site.
-              </p>
-            </div>
           )}
+          <BusinessInfoSection siteId={id!} />
+
+          <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
+            <h2 className="tw-text-sm tw-font-medium tw-text-error tw-mb-1">
+              Danger zone
+            </h2>
+            <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
+              Permanently delete this site and all its files. This cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="tw-h-4 tw-w-4 tw-mr-1.5" />
+                  Delete site
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
+                </AlertDialogDescription>
+                <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => deleteMutation.mutate()}
+                  >
+                    Delete site
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </TabsContent>
 
         {/* Files */}
@@ -972,10 +994,6 @@ export function SiteDetail() {
           )}
         </TabsContent>
 
-        {/* SEO */}
-        <TabsContent value="seo">
-          <BusinessInfoSection siteId={id!} />
-        </TabsContent>
 
         {/* Scripts */}
         <TabsContent value="scripts" className="tw-space-y-4">
@@ -1009,40 +1027,6 @@ export function SiteDetail() {
           )}
         </TabsContent>
 
-        {/* Settings */}
-        <TabsContent value="settings">
-          <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
-            <h2 className="tw-text-sm tw-font-medium tw-text-error tw-mb-1">
-              Danger zone
-            </h2>
-            <p className="tw-text-xs tw-text-muted-foreground tw-mb-3">
-              Permanently delete this site and all its files. This cannot be undone.
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="tw-h-4 tw-w-4 tw-mr-1.5" />
-                  Delete site
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogTitle>Delete "{site.name}"?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the site and all {files.length} deployed file{files.length !== 1 ? "s" : ""}. This cannot be undone.
-                </AlertDialogDescription>
-                <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => deleteMutation.mutate()}
-                  >
-                    Delete site
-                  </AlertDialogAction>
-                </div>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </TabsContent>
       </Tabs>
 
       <AddScriptDialog

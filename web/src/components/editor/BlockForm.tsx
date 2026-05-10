@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Input, Textarea, Switch, Label, Button } from "@pushpress/pushpress-ui";
-import { FolderOpen, Plus, Trash2 } from "lucide-react";
+import { FolderOpen, Plus, Trash2, Upload, Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { inferFieldType, isMediaUrlKey, sortFields } from "../../lib/editor";
 import type { SiteSection } from "../../api";
+import { uploadAsset } from "../../api";
 import { AssetPicker } from "./AssetPicker";
 
 const ACRONYMS = new Set(["url", "html", "api", "sms", "csv", "id"]);
@@ -81,30 +83,27 @@ export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
               />
             )}
 
-            {inputType === "url" && (
-              <div className="tw-flex tw-gap-1.5">
-                <Input
-                  type="url"
-                  value={typeof value === "string" ? value : ""}
-                  onChange={(e) => setField(key, e.target.value)}
-                  className="tw-text-sm tw-flex-1"
-                  placeholder={isMedia ? "Paste URL or browse…" : undefined}
-                />
-                {isMedia && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    title="Browse media library"
-                    onClick={() => setPickerField({
-                      key,
-                      accept: key.includes("video") ? "video" : "image",
-                    })}
-                  >
-                    <FolderOpen className="tw-h-4 tw-w-4" />
-                  </Button>
-                )}
-              </div>
+            {inputType === "url" && !isMedia && (
+              <Input
+                type="url"
+                value={typeof value === "string" ? value : ""}
+                onChange={(e) => setField(key, e.target.value)}
+                className="tw-text-sm"
+              />
+            )}
+
+            {inputType === "url" && isMedia && (
+              <InlineMediaField
+                siteId={siteId}
+                fieldKey={key}
+                value={typeof value === "string" ? value : ""}
+                accept={key.includes("video") ? "video" : "image"}
+                onChange={(url) => setField(key, url)}
+                onBrowse={() => setPickerField({
+                  key,
+                  accept: key.includes("video") ? "video" : "image",
+                })}
+              />
             )}
 
             {inputType === "textarea" && (
@@ -168,6 +167,91 @@ export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
           onClose={() => setPickerField(null)}
         />
       )}
+    </div>
+  );
+}
+
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml";
+const VIDEO_ACCEPT = "video/mp4,video/webm";
+
+function InlineMediaField({
+  siteId,
+  fieldKey,
+  value,
+  accept,
+  onChange,
+  onBrowse,
+}: {
+  siteId: string;
+  fieldKey: string;
+  value: string;
+  accept: "image" | "video";
+  onChange: (url: string) => void;
+  onBrowse: () => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadAsset(siteId, file),
+    onSuccess: (asset) => {
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId, "assets"] });
+      onChange(asset.url);
+      setUploadError(null);
+    },
+    onError: (err: Error) => setUploadError(err.message),
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) uploadMutation.mutate(file);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="tw-space-y-1">
+      <div className="tw-flex tw-gap-1.5">
+        <Input
+          type="url"
+          value={value}
+          onChange={(e) => { onChange(e.target.value); setUploadError(null); }}
+          className="tw-text-sm tw-flex-1"
+          placeholder="Paste URL, upload, or browse…"
+          aria-label={fieldKey}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          title="Upload file"
+          disabled={uploadMutation.isPending}
+          onClick={() => fileRef.current?.click()}
+        >
+          {uploadMutation.isPending
+            ? <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin" />
+            : <Upload className="tw-h-4 tw-w-4" />}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          title="Browse media library"
+          onClick={onBrowse}
+        >
+          <FolderOpen className="tw-h-4 tw-w-4" />
+        </Button>
+      </div>
+      {uploadError && (
+        <p className="tw-text-xs tw-text-error">{uploadError}</p>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept={accept === "video" ? VIDEO_ACCEPT : IMAGE_ACCEPT}
+        className="tw-hidden"
+        onChange={handleFileChange}
+      />
     </div>
   );
 }

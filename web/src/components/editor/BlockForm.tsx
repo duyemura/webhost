@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Input, Textarea, Switch, Label, Button } from "@pushpress/pushpress-ui";
 import { FolderOpen, Plus, Trash2 } from "lucide-react";
-import { inferFieldType, isMediaUrlKey } from "../../lib/editor";
+import { inferFieldType, isMediaUrlKey, sortFields } from "../../lib/editor";
 import type { SiteSection } from "../../api";
 import { AssetPicker } from "./AssetPicker";
 
@@ -25,7 +25,10 @@ interface BlockFormProps {
 }
 
 export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
-  const fields = Object.entries(section).filter(([k]) => k !== "id" && k !== "type");
+  const fieldKeys = sortFields(
+    Object.keys(section).filter((k) => k !== "id" && k !== "type")
+  );
+  const fields = fieldKeys.map((k) => [k, section[k as keyof typeof section]] as [string, unknown]);
 
   const [draft, setDraft] = useState<Record<string, unknown>>(() => Object.fromEntries(fields));
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});

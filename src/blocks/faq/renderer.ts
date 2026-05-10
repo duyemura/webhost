@@ -7,10 +7,11 @@ interface FaqFields {
   items: { question: string; answer: string }[];
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, _profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: BusinessProfile | null): string {
   const s = section as unknown as FaqFields;
+  const di = theme.style_hint === "dark-industrial";
 
-  return `<section class="block-faq">
+  return `<section class="block-faq${di ? " block-faq--di" : ""}">
   <div class="container">
     ${s.headline ? `<div class="section-header text-center"><h2>${esc(s.headline)}</h2></div>` : ""}
     <div class="block-faq__list">

@@ -7,11 +7,12 @@ interface ReviewsFields {
   items: { text: string; author: string; rating?: number; platform?: string; date?: string }[];
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, _profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: BusinessProfile | null): string {
   const s = section as unknown as ReviewsFields;
   const cols = Math.min(s.items.length, 3);
+  const di = theme.style_hint === "dark-industrial";
 
-  return `<section class="block-reviews">
+  return `<section class="block-reviews${di ? " block-reviews--di" : ""}">
   <div class="container">
     ${s.headline ? `<div class="section-header text-center"><h2>${esc(s.headline)}</h2></div>` : ""}
     <div class="grid-${cols}">

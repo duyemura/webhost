@@ -21,8 +21,9 @@ function buildAddress(profile: BusinessProfile): string {
   return parts.join(", ");
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
   const s = section as unknown as MapLocationFields;
+  const di = theme.style_hint === "dark-industrial";
   const showMap = s.show_map !== false;
   const showHours = s.show_hours !== false;
   const showPhone = s.show_phone !== false;
@@ -40,7 +41,7 @@ export function render(section: Record<string, unknown>, _theme: Theme, profile:
       : `<div class="block-map-location__map" style="display:flex;align-items:center;justify-content:center;color:var(--color-muted-fg)">${address ? "Map requires a Google Maps API key" : "No address set"}</div>`
     : "";
 
-  return `<section class="block-map-location">
+  return `<section class="block-map-location${di ? " block-map-location--di" : ""}">
   <div class="container">
     <div class="block-map-location__inner">
       <div class="block-map-location__info">

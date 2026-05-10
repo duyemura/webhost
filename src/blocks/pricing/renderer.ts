@@ -19,10 +19,11 @@ interface PricingFields {
   items: PricingItem[];
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, _profile: unknown): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: unknown): string {
   const s = section as unknown as PricingFields;
+  const di = theme.style_hint === "dark-industrial";
 
-  return `<section class="block-pricing">
+  return `<section class="block-pricing${di ? " block-pricing--di" : ""}">
   <div class="container">
     ${s.headline || s.subheadline ? `<div class="section-header text-center">
       ${s.headline ? `<h2>${esc(s.headline)}</h2>` : ""}

@@ -57,6 +57,9 @@ import {
   THEME_PRESETS,
   THEME_PRESET_COLORS,
   THEME_PRESET_LABELS,
+  getTemplates,
+  getTemplate,
+  getPresets,
   type ThemePreset,
   type SiteScript,
   type BusinessProfile,
@@ -814,6 +817,95 @@ function AiGenerateSection({
   );
 }
 
+function TemplatePickerEmptyState({
+  siteId,
+  onApplied,
+}: {
+  siteId: string;
+  onApplied: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [applying, setApplying] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: templates, isLoading } = useQuery({
+    queryKey: ["templates"],
+    queryFn: getTemplates,
+  });
+
+  const { data: presets } = useQuery({
+    queryKey: ["presets"],
+    queryFn: getPresets,
+  });
+
+  async function applyTemplate(templateId: string, themePreset: string) {
+    setApplying(templateId);
+    setError(null);
+    try {
+      const tpl = await getTemplate(templateId);
+      const spec: SiteSpec = {
+        version: 1,
+        pages: [{ slug: "home", title: "Home", meta_description: "", sections: tpl.blocks as never[] }],
+      };
+      const theme = (presets?.[themePreset] ?? DEFAULT_THEME) as Theme;
+      await updateSpec(siteId, spec);
+      await updateTheme(siteId, theme, themePreset);
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
+      onApplied();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to apply template.");
+    } finally {
+      setApplying(null);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="tw-space-y-3 tw-py-4">
+        <Skeleton className="tw-h-24 tw-w-full" />
+        <Skeleton className="tw-h-24 tw-w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="tw-space-y-4 tw-py-4">
+      <div>
+        <p className="tw-text-sm tw-font-medium tw-text-foreground">Start from a template</p>
+        <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
+          Load a pre-built layout and customize it in the editor, or generate with AI instead.
+        </p>
+      </div>
+      <div className="tw-space-y-2">
+        {templates?.map(tpl => (
+          <div
+            key={tpl.id}
+            className="tw-flex tw-items-start tw-gap-3 tw-rounded-lg tw-border tw-border-border tw-p-4"
+          >
+            <div className="tw-flex-1 tw-min-w-0">
+              <p className="tw-text-sm tw-font-semibold tw-text-foreground">{tpl.name}</p>
+              <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5 tw-leading-relaxed">
+                {tpl.description}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => applyTemplate(tpl.id, tpl.theme_preset)}
+              isSubmitting={applying === tpl.id}
+              disabled={applying !== null}
+              className="tw-shrink-0"
+            >
+              Use template
+            </Button>
+          </div>
+        ))}
+      </div>
+      {error && <p className="tw-text-sm tw-text-error">{error}</p>}
+    </div>
+  );
+}
+
 function UrlBar({ slug, customDomain }: { slug: string; customDomain: string | null }) {
   const [copied, setCopied] = useState(false);
   const primaryUrl = customDomain ? `https://${customDomain}` : `http://${slug}.localhost:3000`;
@@ -1064,9 +1156,13 @@ export function SiteDetail() {
                   onLivePreviewChange={(spec, theme, page) => setLivePreview({ spec, theme, page })}
                 />
               ) : (
-                <div className="tw-text-center tw-py-12 tw-text-muted-foreground">
-                  <p className="tw-text-sm">No site generated yet. Use the AI tab to generate your site first.</p>
-                </div>
+                <TemplatePickerEmptyState
+                  siteId={id!}
+                  onApplied={() => {
+                    queryClient.invalidateQueries({ queryKey: ["sites", id] });
+                    refreshPreview();
+                  }}
+                />
               )}
             </TabsContent>
 

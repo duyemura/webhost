@@ -11,9 +11,10 @@ interface AboutFields {
   image_position?: "left" | "right";
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
   const s = section as unknown as AboutFields;
   const imgLeft = s.image_position === "left";
+  const di = theme.style_hint === "dark-industrial";
 
   const imageEl = s.image_url
     ? `<div class="block-about__image"><img src="${esc(s.image_url)}" alt="" loading="lazy"></div>`
@@ -24,7 +25,7 @@ export function render(section: Record<string, unknown>, _theme: Theme, profile:
     ${s.cta ? `<a href="${esc(s.cta.url)}" class="btn-primary">${esc(s.cta.text)}</a>` : ""}
   </div>`;
 
-  return `<section class="block-about">
+  return `<section class="block-about${di ? " block-about--di" : ""}">
   <div class="container">
     ${s.image_url
       ? `<div class="block-about__inner" style="${imgLeft ? "direction:rtl" : ""}">${imgLeft ? `${imageEl}${textEl}` : `${textEl}${imageEl}`}</div>`

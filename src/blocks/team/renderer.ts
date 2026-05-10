@@ -7,9 +7,29 @@ interface TeamFields {
   members: { name: string; role?: string; bio?: string; photo_url?: string }[];
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, _profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: BusinessProfile | null): string {
   const s = section as unknown as TeamFields;
   const cols = Math.min(s.members.length, 4);
+
+  if (theme.style_hint === "dark-industrial") {
+    return `<section class="block-team block-team--di">
+  <div class="container">
+    ${s.headline ? `<div class="section-header"><h2>${esc(s.headline)}</h2></div>` : ""}
+    <div class="grid-${cols}">
+      ${s.members.map(m => `<div class="di-team-card">
+        ${m.photo_url
+          ? `<img class="di-team-photo" src="${esc(m.photo_url)}" alt="${esc(m.name)}" loading="lazy">`
+          : `<div class="di-team-photo" style="display:flex;align-items:center;justify-content:center;font-size:3rem;color:var(--color-muted-fg)">👤</div>`}
+        <div class="di-team-card__body">
+          ${m.role ? `<div class="di-team-role">${esc(m.role)}</div>` : ""}
+          <div class="di-team-name">${esc(m.name)}</div>
+          ${m.bio ? `<p class="di-team-bio">${esc(m.bio)}</p>` : ""}
+        </div>
+      </div>`).join("\n")}
+    </div>
+  </div>
+</section>`;
+  }
 
   return `<section class="block-team">
   <div class="container">

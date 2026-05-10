@@ -7,10 +7,11 @@ interface GalleryFields {
   images: { url: string; alt?: string }[];
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, _profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: BusinessProfile | null): string {
   const s = section as unknown as GalleryFields;
+  const di = theme.style_hint === "dark-industrial";
 
-  return `<section class="block-gallery">
+  return `<section class="block-gallery${di ? " block-gallery--di" : ""}">
   <div class="container">
     ${s.headline ? `<div class="section-header text-center"><h2>${esc(s.headline)}</h2></div>` : ""}
     <div class="block-gallery__grid">

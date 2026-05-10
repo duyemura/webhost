@@ -10,10 +10,11 @@ interface IntroOfferFields {
   cta: { text: string; url: string };
 }
 
-export function render(section: Record<string, unknown>, _theme: Theme, _profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: BusinessProfile | null): string {
   const s = section as unknown as IntroOfferFields;
+  const di = theme.style_hint === "dark-industrial";
 
-  return `<section class="block-intro-offer">
+  return `<section class="block-intro-offer${di ? " block-intro-offer--di" : ""}">
   <div class="container">
     <div class="block-intro-offer__inner">
       <h2>${esc(s.headline)}</h2>

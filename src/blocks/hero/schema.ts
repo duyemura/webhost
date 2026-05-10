@@ -5,7 +5,9 @@ import { render } from "./renderer.js";
 const schema = z.object({
   id: z.string(),
   type: z.literal("hero"),
-  headline: z.string().min(1).max(150),
+  eyebrow: z.string().max(120).optional(),
+  headline: z.string().min(1).max(200),
+  accent_words: z.array(z.string().max(50)).max(5).optional(),
   subheadline: z.string().max(400).optional(),
   cta_primary: z.object({ text: z.string(), url: z.string() }).optional(),
   cta_secondary: z.object({ text: z.string(), url: z.string() }).optional(),
@@ -14,6 +16,10 @@ const schema = z.object({
     value: z.string().optional(),
   }).optional(),
   image_url: z.string().optional(),
+  stats_bar: z.array(z.object({
+    value: z.string().max(20),
+    label: z.string().max(60),
+  })).max(6).optional(),
 });
 
 export const heroBlock: BlockDefinition = {
@@ -23,11 +29,14 @@ export const heroBlock: BlockDefinition = {
   aiSchema: {
     type: "hero",
     fields: {
-      headline: "string (required, max 150 chars)",
+      eyebrow: "string (optional, short label shown above headline)",
+      headline: "string (required, use \\n for line breaks)",
+      accent_words: "string[] (optional, words in headline to highlight in primary color)",
       subheadline: "string (optional, max 400 chars)",
       cta_primary: "{ text, url } (optional)",
       cta_secondary: "{ text, url } (optional)",
       background: "{ style: 'color'|'image'|'dark', value?: string } (optional)",
+      stats_bar: "Array<{ value, label }> (optional, 2–4 key stats shown below CTAs)",
     },
   },
 };

@@ -5,7 +5,8 @@ import { render } from "./renderer.js";
 const schema = z.object({
   id: z.string(),
   type: z.literal("testimonials"),
-  headline: z.string().max(150).optional(),
+  eyebrow: z.string().max(120).optional(),
+  headline: z.string().max(200).optional(),
   items: z.array(z.object({
     quote: z.string().max(600),
     name: z.string().max(100),
@@ -21,7 +22,8 @@ export const testimonialsBlock: BlockDefinition = {
   aiSchema: {
     type: "testimonials",
     fields: {
-      headline: "string (optional)",
+      eyebrow: "string (optional, short label above headline)",
+      headline: "string (optional, use \\n for line breaks)",
       items: "Array<{ quote, name, role?, avatar_url? }> (1–9)",
     },
   },

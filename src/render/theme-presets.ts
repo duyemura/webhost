@@ -105,7 +105,7 @@ const dark: Theme = {
   },
   shape: { radius: "none" },
   spacing: { section_padding: "loose" },
-  style_hint: "dark premium strength gym athletic intense",
+  style_hint: "dark-industrial",
 };
 
 const minimal: Theme = {

@@ -224,6 +224,21 @@ export const revertThemeToPublished = (id: string) =>
 export const getPresets = () =>
   apiFetch<Record<string, Theme>>("/presets");
 
+export interface SiteTemplate {
+  id: string;
+  name: string;
+  description: string;
+  theme_preset: string;
+  preview_image: string | null;
+}
+
+export interface SiteTemplateDetail extends SiteTemplate {
+  blocks: SiteSection[];
+}
+
+export const getTemplates = () => apiFetch<SiteTemplate[]>("/templates");
+export const getTemplate = (id: string) => apiFetch<SiteTemplateDetail>(`/templates/${id}`);
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 export function slugify(text: string): string {

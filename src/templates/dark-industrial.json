@@ -1,0 +1,262 @@
+{
+  "id": "dark-industrial",
+  "name": "Dark Industrial",
+  "description": "Bold dark theme for strength gyms and martial arts studios. High-contrast, industrial aesthetic with accent colors.",
+  "theme_preset": "dark",
+  "preview_image": null,
+  "blocks": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "eyebrow": "{{biz_name}}",
+      "headline": "FORGE YOUR\nSTRONGEST SELF",
+      "accent_words": ["STRONGEST"],
+      "subheadline": "Elite coaching. Real results. No excuses.",
+      "cta_primary": { "text": "Start today", "url": "#intro-offer" },
+      "cta_secondary": { "text": "See our programs", "url": "#programs" },
+      "stats_bar": [
+        { "value": "500+", "label": "Members trained" },
+        { "value": "10+", "label": "Years coaching" },
+        { "value": "3", "label": "Locations" },
+        { "value": "98%", "label": "Member retention" }
+      ]
+    },
+    {
+      "id": "marquee-1",
+      "type": "marquee",
+      "items": [
+        "STRENGTH TRAINING",
+        "CONDITIONING",
+        "MUAY THAI",
+        "BOXING",
+        "JIU-JITSU",
+        "OPEN GYM",
+        "PERSONAL TRAINING",
+        "NUTRITION COACHING"
+      ],
+      "speed": 30
+    },
+    {
+      "id": "features-1",
+      "type": "features",
+      "eyebrow": "Why choose us",
+      "headline": "TRAINING THAT ACTUALLY WORKS",
+      "subheadline": "No fluff. No gimmicks. Just proven methods from coaches who've been in the trenches.",
+      "items": [
+        {
+          "title": "Expert coaching",
+          "body": "Every class is led by a certified coach with years of competitive experience — not a personal trainer reading from a script."
+        },
+        {
+          "title": "Small group classes",
+          "body": "Capped at 12 athletes per class so you get real coaching cues, not just a number in a crowd."
+        },
+        {
+          "title": "Proven programming",
+          "body": "Our periodized programming is designed to build strength, power, and conditioning in a logical progression over 12 weeks."
+        },
+        {
+          "title": "Community that pushes you",
+          "body": "Train alongside people who show up consistently and push each other. The energy in our gym is unlike anything else."
+        },
+        {
+          "title": "All fitness levels welcome",
+          "body": "From complete beginner to competitive athlete — our coaches scale every movement so you train at the right intensity."
+        },
+        {
+          "title": "State-of-the-art facility",
+          "body": "Over 6,000 sq ft of training space with competition-grade equipment, turf, and a dedicated striking area."
+        }
+      ]
+    },
+    {
+      "id": "programs-1",
+      "type": "programs",
+      "eyebrow": "What we offer",
+      "headline": "FIND YOUR PROGRAM",
+      "subheadline": "Whether you're here to compete or just get in the best shape of your life, we have the right program for you.",
+      "items": [
+        {
+          "name": "Strength & Conditioning",
+          "description": "Our flagship program. Build a powerful, athletic body through barbell training, gymnastics, and metabolic conditioning.",
+          "schedule": "Mon / Wed / Fri — 6 AM, 12 PM, 5:30 PM",
+          "cta": { "text": "Learn more", "url": "#intro-offer" },
+          "tag": "Most popular"
+        },
+        {
+          "name": "Muay Thai",
+          "description": "Authentic striking art taught by fighters. Learn punches, kicks, elbows, and clinch — great for fitness or competition.",
+          "schedule": "Tue / Thu — 6:30 PM · Sat — 10 AM",
+          "cta": { "text": "Learn more", "url": "#intro-offer" }
+        },
+        {
+          "name": "Brazilian Jiu-Jitsu",
+          "description": "Ground-based grappling that develops problem-solving, body control, and confidence. Beginner-friendly environment.",
+          "schedule": "Mon / Wed — 7 PM · Sun — 11 AM",
+          "cta": { "text": "Learn more", "url": "#intro-offer" }
+        },
+        {
+          "name": "Open Gym",
+          "description": "Drop in and use the full facility on your own schedule. Access to all equipment, turf, and striking bags.",
+          "schedule": "7 days a week — 5 AM to 10 PM",
+          "cta": { "text": "Learn more", "url": "#intro-offer" }
+        }
+      ]
+    },
+    {
+      "id": "intro-offer-1",
+      "type": "intro-offer",
+      "headline": "Try us for two weeks",
+      "price": "$49",
+      "period": "2-week trial",
+      "details": "Unlimited classes across all programs. No contract, no commitment. Just come in and train.",
+      "cta": { "text": "Claim your trial", "url": "#contact" }
+    },
+    {
+      "id": "testimonials-1",
+      "type": "testimonials",
+      "eyebrow": "Real results",
+      "headline": "WHAT OUR ATHLETES SAY",
+      "subheadline": "Don't take our word for it.",
+      "items": [
+        {
+          "quote": "I've trained at five different gyms over the years. This is the first one where the coaching is actually individualized. I hit a 40-lb PR on my deadlift in my first three months.",
+          "name": "Marcus T.",
+          "role": "Member since 2021"
+        },
+        {
+          "quote": "I was intimidated to try Muay Thai at 38. Coach Ray made me feel welcome from day one. A year later I competed in my first amateur fight. Never thought I'd say that.",
+          "name": "Priya S.",
+          "role": "Muay Thai athlete"
+        },
+        {
+          "quote": "The community here is something else. People cheer for you when you PR, check in when you miss a week, and push you when you're going through it. It's the best investment I make every month.",
+          "name": "James K.",
+          "role": "Member since 2019"
+        }
+      ]
+    },
+    {
+      "id": "team-1",
+      "type": "team",
+      "headline": "MEET YOUR COACHES",
+      "members": [
+        {
+          "name": "Alex Rivera",
+          "role": "Head Strength Coach",
+          "bio": "CSCS certified with 12 years of coaching. Former D1 athlete and powerlifting competitor."
+        },
+        {
+          "name": "Ray Nakamura",
+          "role": "Muay Thai Coach",
+          "bio": "20+ years of competitive Muay Thai. National champion and certified instructor under the Thai Boxing Association."
+        },
+        {
+          "name": "Sofia Chen",
+          "role": "BJJ Head Coach",
+          "bio": "Black belt under Marcus Almeida. 8 years coaching and competing at the regional and national level."
+        },
+        {
+          "name": "Derek Moore",
+          "role": "Conditioning Coach",
+          "bio": "Former military fitness trainer. Specializes in GPP, athletic development, and injury-prevention programming."
+        }
+      ]
+    },
+    {
+      "id": "pricing-1",
+      "type": "pricing",
+      "headline": "SIMPLE PRICING",
+      "subheadline": "No surprise fees. Cancel anytime.",
+      "items": [
+        {
+          "name": "Single Program",
+          "description": "Unlimited classes in one discipline",
+          "price": "$149",
+          "period": "/ month",
+          "features": [
+            "Unlimited classes",
+            "Coach-led every session",
+            "Access to programming app",
+            "Community Slack group"
+          ],
+          "cta": { "text": "Get started", "url": "#contact" }
+        },
+        {
+          "name": "All-Access",
+          "description": "Train in every program, every day",
+          "price": "$199",
+          "period": "/ month",
+          "features": [
+            "All programs included",
+            "Unlimited open gym",
+            "Nutrition check-ins",
+            "Priority booking",
+            "Member events"
+          ],
+          "cta": { "text": "Get started", "url": "#contact" },
+          "featured": true,
+          "badge": "Best value"
+        },
+        {
+          "name": "Drop-In",
+          "description": "Try a single class, no strings",
+          "price": "$30",
+          "period": "/ class",
+          "features": [
+            "Any single class",
+            "Equipment provided",
+            "No appointment needed"
+          ],
+          "cta": { "text": "Drop in", "url": "#contact" }
+        }
+      ]
+    },
+    {
+      "id": "faq-1",
+      "type": "faq",
+      "headline": "COMMON QUESTIONS",
+      "items": [
+        {
+          "question": "Do I need any experience to start?",
+          "answer": "No experience needed. Our coaches scale every movement so beginners and advanced athletes train side by side safely. We recommend the 2-week trial to try a few different programs before committing."
+        },
+        {
+          "question": "What should I bring to my first class?",
+          "answer": "Athletic clothes and water. We have everything else — gloves, hand wraps, and a gi are available to borrow while you're on trial. Once you join, most members get their own gear within the first month."
+        },
+        {
+          "question": "How often should I train?",
+          "answer": "Most members see great results at 3–4 sessions per week. We build recovery into our programming, but our coaches will help you figure out the right schedule for your goals and recovery capacity."
+        },
+        {
+          "question": "Can I try multiple programs on the All-Access plan?",
+          "answer": "Yes — that's the whole point. Many members strength train 3 days and do Muay Thai or BJJ 2 days. The programs are designed to complement each other."
+        },
+        {
+          "question": "Is there a contract?",
+          "answer": "No long-term contracts. Month-to-month billing, cancel with 30 days' notice. We want you here because you love training, not because you're locked in."
+        }
+      ]
+    },
+    {
+      "id": "cta-1",
+      "type": "cta-banner",
+      "eyebrow": "Ready to start",
+      "headline": "STOP WAITING.\nSTART TRAINING.",
+      "accent_words": ["STOP", "START"],
+      "subheadline": "Your first two weeks are $49. Unlimited classes, zero commitment.",
+      "cta": { "text": "Claim your trial", "url": "#contact" },
+      "layout": "centered"
+    },
+    {
+      "id": "map-1",
+      "type": "map-location",
+      "headline": "FIND US",
+      "show_map": true,
+      "show_hours": true,
+      "show_phone": true,
+      "show_email": false
+    }
+  ]
+}

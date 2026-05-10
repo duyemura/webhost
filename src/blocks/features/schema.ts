@@ -5,8 +5,9 @@ import { render } from "./renderer.js";
 const schema = z.object({
   id: z.string(),
   type: z.literal("features"),
-  headline: z.string().max(150).optional(),
-  subheadline: z.string().max(400).optional(),
+  eyebrow: z.string().max(120).optional(),
+  headline: z.string().max(200).optional(),
+  subheadline: z.string().max(600).optional(),
   items: z.array(z.object({
     icon: z.string().optional(),
     title: z.string().max(100),
@@ -21,8 +22,9 @@ export const featuresBlock: BlockDefinition = {
   aiSchema: {
     type: "features",
     fields: {
-      headline: "string (optional)",
-      subheadline: "string (optional)",
+      eyebrow: "string (optional, short label above headline)",
+      headline: "string (optional, use \\n for line breaks)",
+      subheadline: "string (optional, body text — appears right of headline in dark-industrial)",
       items: "Array<{ icon?: string, title: string, description: string }> (1–12 items)",
     },
   },

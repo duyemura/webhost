@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -34,6 +34,7 @@ import {
   Input,
   Label,
   Textarea,
+  Checkbox,
 } from "@pushpress/pushpress-ui";
 import {
   getSite,
@@ -638,21 +639,35 @@ function UrlBar({ slug, customDomain }: { slug: string; customDomain: string | n
 function FileRow({
   file,
   siteId,
+  selected,
+  onSelect,
   onDeleted,
 }: {
   file: SiteFile;
   siteId: string;
+  selected: boolean;
+  onSelect: (checked: boolean) => void;
   onDeleted: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => deleteFile(siteId, file.path),
-    onSuccess: onDeleted,
+    onSuccess: () => {
+      setConfirming(false);
+      onDeleted();
+    },
+    onError: (err: Error) => setDeleteError(err.message),
   });
 
   return (
     <div className="tw-flex tw-items-center tw-gap-3 tw-py-2.5 tw-border-b tw-border-border last:tw-border-0">
+      <Checkbox
+        checked={selected}
+        onCheckedChange={(v) => onSelect(!!v)}
+        className="tw-shrink-0"
+      />
       <FileText className="tw-h-4 tw-w-4 tw-text-muted-foreground tw-shrink-0" />
       <span className="tw-flex-1 tw-font-mono tw-text-sm tw-text-foreground tw-truncate">
         {file.path}
@@ -660,7 +675,7 @@ function FileRow({
       <span className="tw-text-xs tw-text-muted-foreground tw-shrink-0">
         {formatBytes(file.size)}
       </span>
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialog open={confirming} onOpenChange={(o) => { setConfirming(o); if (!o) setDeleteError(null); }}>
         <AlertDialogTrigger asChild>
           <Button
             variant="ghost"
@@ -675,14 +690,18 @@ function FileRow({
           <AlertDialogDescription>
             <span className="tw-font-mono">{file.path}</span> will be permanently removed from your site.
           </AlertDialogDescription>
+          {deleteError && (
+            <p className="tw-text-sm tw-text-error">{deleteError}</p>
+          )}
           <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={mutation.isPending}>Cancel</AlertDialogCancel>
+            <Button
               variant="destructive"
+              isSubmitting={mutation.isPending}
               onClick={() => mutation.mutate()}
             >
               Delete file
-            </AlertDialogAction>
+            </Button>
           </div>
         </AlertDialogContent>
       </AlertDialog>
@@ -697,6 +716,9 @@ export function SiteDetail() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [addScriptOpen, setAddScriptOpen] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkConfirming, setBulkConfirming] = useState(false);
 
   const { data: site, isLoading: siteLoading } = useQuery({
     queryKey: ["sites", id],
@@ -745,6 +767,21 @@ export function SiteDetail() {
     setUploadError(null);
     setUploadSuccess(null);
     uploadMutation.mutate(file);
+  }
+
+  const invalidateFiles = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["sites", id, "files"] });
+  }, [queryClient, id]);
+
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    await Promise.allSettled(
+      [...selectedFiles].map((path) => deleteFile(id!, path))
+    );
+    setSelectedFiles(new Set());
+    setBulkDeleting(false);
+    setBulkConfirming(false);
+    invalidateFiles();
   }
 
   if (siteLoading) {
@@ -837,12 +874,40 @@ export function SiteDetail() {
         {/* File list */}
         {files.length > 0 && (
           <div>
-            <h2 className="tw-text-sm tw-font-medium tw-text-foreground tw-mb-2">
-              Files{" "}
-              <span className="tw-text-muted-foreground tw-font-normal">
-                ({files.length})
-              </span>
-            </h2>
+            <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
+              <h2 className="tw-text-sm tw-font-medium tw-text-foreground">
+                Files{" "}
+                <span className="tw-text-muted-foreground tw-font-normal">
+                  ({files.length})
+                </span>
+              </h2>
+              {selectedFiles.size > 0 && (
+                <AlertDialog open={bulkConfirming} onOpenChange={setBulkConfirming}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="tw-h-3.5 tw-w-3.5 tw-mr-1" />
+                      Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogTitle>Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently remove {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""} from your site. This cannot be undone.
+                    </AlertDialogDescription>
+                    <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
+                      <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                      <Button
+                        variant="destructive"
+                        isSubmitting={bulkDeleting}
+                        onClick={handleBulkDelete}
+                      >
+                        Delete {selectedFiles.size} file{selectedFiles.size !== 1 ? "s" : ""}
+                      </Button>
+                    </div>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
             <div className="tw-rounded-lg tw-border tw-border-border tw-px-3">
               {filesLoading ? (
                 <div className="tw-py-4 tw-space-y-2">
@@ -850,18 +915,40 @@ export function SiteDetail() {
                   <Skeleton className="tw-h-4 tw-w-3/4" />
                 </div>
               ) : (
-                files.map((file) => (
-                  <FileRow
-                    key={file.path}
-                    file={file}
-                    siteId={id!}
-                    onDeleted={() =>
-                      queryClient.invalidateQueries({
-                        queryKey: ["sites", id, "files"],
-                      })
-                    }
-                  />
-                ))
+                <>
+                  {files.length > 1 && (
+                    <div className="tw-flex tw-items-center tw-gap-3 tw-py-2 tw-border-b tw-border-border">
+                      <Checkbox
+                        checked={selectedFiles.size === files.length}
+                        onCheckedChange={(v) =>
+                          setSelectedFiles(v ? new Set(files.map((f) => f.path)) : new Set())
+                        }
+                        className="tw-shrink-0"
+                      />
+                      <span className="tw-text-xs tw-text-muted-foreground">
+                        {selectedFiles.size === 0
+                          ? "Select all"
+                          : `${selectedFiles.size} of ${files.length} selected`}
+                      </span>
+                    </div>
+                  )}
+                  {files.map((file) => (
+                    <FileRow
+                      key={file.path}
+                      file={file}
+                      siteId={id!}
+                      selected={selectedFiles.has(file.path)}
+                      onSelect={(checked) => {
+                        setSelectedFiles((prev) => {
+                          const next = new Set(prev);
+                          checked ? next.add(file.path) : next.delete(file.path);
+                          return next;
+                        });
+                      }}
+                      onDeleted={invalidateFiles}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </div>

@@ -43,10 +43,11 @@ export async function apiFetch<T>(
   init?: RequestInit
 ): Promise<T> {
   const token = getToken();
+  const hasBody = init?.body != null;
   const res = await fetch(`/api${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },

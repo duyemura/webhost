@@ -1,4 +1,4 @@
-import React, { useState, type RefObject } from "react";
+import React, { useState, useEffect, useRef, type RefObject } from "react";
 import { Button, Badge } from "@pushpress/pushpress-ui";
 import { Plus, X, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
@@ -13,9 +13,10 @@ interface BlockEditorProps {
   initialSpec: SiteSpec;
   initialTheme: Theme;
   iframeRef: RefObject<HTMLIFrameElement | null>;
+  onLivePreviewChange?: (spec: SiteSpec, theme: Theme, activePage: string) => void;
 }
 
-export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef }: BlockEditorProps) {
+export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef, onLivePreviewChange }: BlockEditorProps) {
   const queryClient = useQueryClient();
 
   const [localSpec, setLocalSpec] = useState<SiteSpec>(initialSpec);
@@ -29,6 +30,14 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, iframeRef }: Bl
   const [newPageSlug, setNewPageSlug] = useState("");
   const [newPageTitle, setNewPageTitle] = useState("");
   const [pageError, setPageError] = useState<string | null>(null);
+
+  // Notify parent of current live state whenever it changes.
+  // Use a ref so the inline arrow function passed by the parent doesn't re-trigger the effect.
+  const onLivePreviewChangeRef = useRef(onLivePreviewChange);
+  onLivePreviewChangeRef.current = onLivePreviewChange;
+  useEffect(() => {
+    onLivePreviewChangeRef.current?.(localSpec, localTheme, activePage);
+  }, [localSpec, localTheme, activePage]);
 
   // spec/theme helpers always return new references on real changes — reference equality is sufficient
   const dirty = localSpec !== savedSpec || localTheme !== savedTheme;

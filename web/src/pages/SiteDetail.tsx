@@ -76,6 +76,7 @@ import {
   updateTheme,
 } from "../api";
 import { BlockEditor } from "../components/editor/BlockEditor";
+import { LivePreview } from "../components/editor/LivePreview";
 
 const DOMAIN_RE = /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
@@ -958,6 +959,8 @@ export function SiteDetail() {
   const [genPrompt, setGenPrompt] = useState("");
   const [genTheme, setGenTheme] = useState<ThemePreset>("bold");
   const [genRegenOpen, setGenRegenOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [livePreview, setLivePreview] = useState<{ spec: SiteSpec; theme: Theme; page: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const { data: site, isLoading: siteLoading } = useQuery({
@@ -1111,7 +1114,7 @@ export function SiteDetail() {
       <div className="tw-flex-1 lg:tw-flex-none lg:tw-w-1/3 tw-shrink-0 tw-flex tw-flex-col tw-overflow-hidden lg:tw-border-r lg:tw-border-border">
         <div className="tw-overflow-y-auto tw-flex-1 tw-pr-6 tw-pb-8">
 
-          <Tabs defaultValue="overview" className="tw-mt-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="tw-mt-6">
             <div className="tw-flex tw-items-center tw-justify-between tw-mb-6">
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -1196,6 +1199,7 @@ export function SiteDetail() {
                   initialSpec={site.spec as SiteSpec}
                   initialTheme={(site.theme ?? DEFAULT_THEME) as Theme}
                   iframeRef={iframeRef}
+                  onLivePreviewChange={(spec, theme, page) => setLivePreview({ spec, theme, page })}
                 />
               ) : (
                 <div className="tw-text-center tw-py-12 tw-text-muted-foreground">
@@ -1416,7 +1420,16 @@ export function SiteDetail() {
         </div>
 
         {/* Preview area */}
-        {isPublished ? (
+        {activeTab === "editor" && livePreview ? (
+          <div className="tw-flex-1 tw-flex tw-overflow-hidden tw-border tw-border-border tw-rounded-b-lg tw-bg-background">
+            <LivePreview
+              spec={livePreview.spec}
+              theme={livePreview.theme}
+              activePage={livePreview.page}
+              viewport={previewViewport}
+            />
+          </div>
+        ) : isPublished ? (
           <div className="tw-flex-1 tw-flex tw-overflow-hidden tw-border tw-border-border tw-rounded-b-lg tw-bg-background">
             {previewViewport === "desktop" ? (
               <iframe

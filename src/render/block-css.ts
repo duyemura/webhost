@@ -92,6 +92,35 @@ export const BLOCK_CSS = `
   background: rgba(0,0,0,0.55);
 }
 .block-hero--image .container { position: relative; z-index: 1; color: #fff; }
+/* media hero (background image or video) */
+.block-hero--media {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+}
+.block-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.block-hero__bg img,
+.block-hero__bg video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+.block-hero__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0,0,0,0.55);
+}
+.block-hero--media .container { position: relative; z-index: 2; }
+.block-hero--media .block-hero__sub { color: rgba(255,255,255,0.8); }
+/* DI with media gets a heavier overlay */
+.block-hero--di.block-hero--media .block-hero__overlay { background: rgba(0,0,0,0.68); }
 .block-hero__content { max-width: 800px; }
 .block-hero__sub {
   font-size: 1.25rem;

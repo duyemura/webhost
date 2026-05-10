@@ -176,7 +176,7 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, pu
       )}
 
       {/* Block list */}
-      <BlockList spec={localSpec} pageSlug={activePage} onChange={setLocalSpec} />
+      <BlockList siteId={siteId} spec={localSpec} pageSlug={activePage} onChange={setLocalSpec} />
 
       {/* Add block button */}
       <Button

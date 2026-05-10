@@ -5,6 +5,7 @@ export interface Database {
   sites: SitesTable;
   scripts: ScriptsTable;
   business_profiles: BusinessProfilesTable;
+  assets: AssetsTable;
 }
 
 export interface UsersTable {
@@ -79,3 +80,15 @@ export interface BusinessProfilesTable {
 export type BusinessProfile = Selectable<BusinessProfilesTable>;
 export type NewBusinessProfile = Insertable<BusinessProfilesTable>;
 export type BusinessProfileUpdate = Updateable<BusinessProfilesTable>;
+
+export interface AssetsTable {
+  id: Generated<string>;
+  site_id: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  size: number;
+  created_at: Generated<Date>;
+}
+
+export type Asset = Selectable<AssetsTable>;

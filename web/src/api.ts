@@ -239,6 +239,43 @@ export interface SiteTemplateDetail extends SiteTemplate {
 export const getTemplates = () => apiFetch<SiteTemplate[]>("/templates");
 export const getTemplate = (id: string) => apiFetch<SiteTemplateDetail>(`/templates/${id}`);
 
+// ── Media assets ──────────────────────────────────────────────────────────────
+
+export interface SiteAsset {
+  id: string;
+  site_id: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  size: number;
+  url: string;
+  created_at: string;
+}
+
+export const getAssets = (siteId: string) =>
+  apiFetch<SiteAsset[]>(`/sites/${siteId}/assets`);
+
+export async function uploadAsset(siteId: string, file: File): Promise<SiteAsset> {
+  const token = localStorage.getItem("token");
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`/api/sites/${siteId}/assets`, {
+    method: "POST",
+    body: form,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text;
+    try { message = JSON.parse(text)?.message ?? text; } catch {}
+    throw new Error(message);
+  }
+  return res.json();
+}
+
+export const deleteAsset = (siteId: string, assetId: string) =>
+  apiFetch<void>(`/sites/${siteId}/assets/${assetId}`, { method: "DELETE" });
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 export function slugify(text: string): string {

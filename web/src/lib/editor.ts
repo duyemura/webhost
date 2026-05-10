@@ -2,6 +2,11 @@ export type FieldInputType = "text" | "textarea" | "url" | "switch" | "json";
 
 const TEXTAREA_KEYS = new Set(["body", "description", "html", "quote", "answer", "bio", "details", "subheadline"]);
 const TEXT_KEYS = new Set(["headline", "title", "name", "label", "period", "price", "value", "tag", "role", "author", "platform", "date", "icon"]);
+const MEDIA_URL_KEYS = new Set(["image_url", "photo_url", "background_video_url", "video_url", "logo_url", "thumbnail_url"]);
+
+export function isMediaUrlKey(key: string): boolean {
+  return MEDIA_URL_KEYS.has(key) || key.endsWith("_image_url") || key.endsWith("_video_url");
+}
 
 export function inferFieldType(key: string, value: unknown): FieldInputType {
   if (typeof value === "boolean" || key.startsWith("show_")) return "switch";

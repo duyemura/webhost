@@ -66,6 +66,19 @@ const sql = `
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme_preset TEXT;
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS published_theme JSONB;
 
+  -- Phase 7: Media asset storage
+  CREATE TABLE IF NOT EXISTS assets (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    filename    TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime_type   TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(site_id, filename)
+  );
+  CREATE INDEX IF NOT EXISTS assets_site_id_idx ON assets(site_id);
+
   -- Phase 4.1: Business profile for SEO/structured data injection
   CREATE TABLE IF NOT EXISTS business_profiles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

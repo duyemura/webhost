@@ -845,7 +845,7 @@ function TemplatePickerEmptyState({
       const tpl = await getTemplate(templateId);
       const spec: SiteSpec = {
         version: 1,
-        pages: [{ slug: "home", title: "Home", meta_description: "", sections: tpl.blocks as never[] }],
+        pages: [{ slug: "index", title: "Home", meta_description: "", sections: tpl.blocks as never[] }],
       };
       const theme = (presets?.[themePreset] ?? DEFAULT_THEME) as Theme;
       await updateSpec(siteId, spec);

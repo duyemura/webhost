@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Input, Textarea, Switch, Label, Button } from "@pushpress/pushpress-ui";
-import { inferFieldType } from "../../lib/editor";
+import { FolderOpen } from "lucide-react";
+import { inferFieldType, isMediaUrlKey } from "../../lib/editor";
 import type { SiteSection } from "../../api";
+import { AssetPicker } from "./AssetPicker";
 
 const ACRONYMS = new Set(["url", "html", "api", "sms", "csv", "id"]);
 
@@ -17,18 +19,18 @@ function toFieldLabel(key: string): string {
 }
 
 interface BlockFormProps {
+  siteId: string;
   section: SiteSection;
   onChange: (fields: Record<string, unknown>) => void;
 }
 
-export function BlockForm({ section, onChange }: BlockFormProps) {
+export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
   const fields = Object.entries(section).filter(([k]) => k !== "id" && k !== "type");
 
-  // Local draft state
   const [draft, setDraft] = useState<Record<string, unknown>>(() => Object.fromEntries(fields));
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
+  const [pickerField, setPickerField] = useState<{ key: string; accept: "image" | "video" | "any" } | null>(null);
 
-  // Sync when section changes externally
   useEffect(() => {
     setDraft(Object.fromEntries(Object.entries(section).filter(([k]) => k !== "id" && k !== "type")));
     setJsonErrors({});
@@ -55,6 +57,7 @@ export function BlockForm({ section, onChange }: BlockFormProps) {
         const value = draft[key];
         const inputType = inferFieldType(key, section[key]);
         const label = toFieldLabel(key);
+        const isMedia = isMediaUrlKey(key);
 
         return (
           <div key={key} className="tw-space-y-1">
@@ -76,12 +79,29 @@ export function BlockForm({ section, onChange }: BlockFormProps) {
             )}
 
             {inputType === "url" && (
-              <Input
-                type="url"
-                value={typeof value === "string" ? value : ""}
-                onChange={(e) => setField(key, e.target.value)}
-                className="tw-text-sm"
-              />
+              <div className="tw-flex tw-gap-1.5">
+                <Input
+                  type="url"
+                  value={typeof value === "string" ? value : ""}
+                  onChange={(e) => setField(key, e.target.value)}
+                  className="tw-text-sm tw-flex-1"
+                  placeholder={isMedia ? "Paste URL or browse…" : undefined}
+                />
+                {isMedia && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    title="Browse media library"
+                    onClick={() => setPickerField({
+                      key,
+                      accept: key.includes("video") ? "video" : "image",
+                    })}
+                  >
+                    <FolderOpen className="tw-h-4 tw-w-4" />
+                  </Button>
+                )}
+              </div>
             )}
 
             {inputType === "textarea" && (
@@ -114,6 +134,16 @@ export function BlockForm({ section, onChange }: BlockFormProps) {
       >
         Apply
       </Button>
+
+      {pickerField && (
+        <AssetPicker
+          siteId={siteId}
+          open
+          accept={pickerField.accept}
+          onSelect={(url) => setField(pickerField.key, url)}
+          onClose={() => setPickerField(null)}
+        />
+      )}
     </div>
   );
 }

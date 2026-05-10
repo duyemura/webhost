@@ -6,12 +6,13 @@ import { moveSection, removeSection, updateSection } from "../../lib/spec";
 import type { SiteSection, SiteSpec } from "../../api";
 
 interface BlockListProps {
+  siteId: string;
   spec: SiteSpec;
   pageSlug: string;
   onChange: (spec: SiteSpec) => void;
 }
 
-export function BlockList({ spec, pageSlug, onChange }: BlockListProps) {
+export function BlockList({ siteId, spec, pageSlug, onChange }: BlockListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const page = spec.pages.find((p) => p.slug === pageSlug);
@@ -98,6 +99,7 @@ export function BlockList({ spec, pageSlug, onChange }: BlockListProps) {
             {isExpanded && (
               <div className="tw-px-3 tw-pb-3">
                 <BlockForm
+                  siteId={siteId}
                   section={section}
                   onChange={(fields) =>
                     onChange(updateSection(spec, pageSlug, section.id, fields))

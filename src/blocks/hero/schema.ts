@@ -15,6 +15,7 @@ const schema = z.object({
     style: z.enum(["color", "image", "dark"]),
     value: z.string().optional(),
   }).optional(),
+  background_video_url: z.string().optional(),
   image_url: z.string().optional(),
   stats_bar: z.array(z.object({
     value: z.string().max(20),
@@ -36,6 +37,7 @@ export const heroBlock: BlockDefinition = {
       cta_primary: "{ text, url } (optional)",
       cta_secondary: "{ text, url } (optional)",
       background: "{ style: 'color'|'image'|'dark', value?: string } (optional)",
+      background_video_url: "string (optional, MP4 URL for fullscreen background video with overlay)",
       stats_bar: "Array<{ value, label }> (optional, 2–4 key stats shown below CTAs)",
     },
   },

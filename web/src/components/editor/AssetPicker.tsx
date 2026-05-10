@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, Trash2, ImageIcon, Film, X } from "lucide-react";
+import { Upload, Trash2, Film } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,14 +11,37 @@ import {
 } from "@pushpress/pushpress-ui";
 import { getAssets, uploadAsset, deleteAsset, type SiteAsset } from "../../api";
 
+type AcceptKind = "image" | "video" | "any";
+
+const IMAGE_MIMES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml";
+const VIDEO_MIMES = "video/mp4,video/webm";
+
+const ACCEPT_ATTR: Record<AcceptKind, string> = {
+  image: IMAGE_MIMES,
+  video: VIDEO_MIMES,
+  any: `${IMAGE_MIMES},${VIDEO_MIMES}`,
+};
+
+const ACCEPT_HINT: Record<AcceptKind, string> = {
+  image: "JPEG, PNG, WebP, GIF, SVG",
+  video: "MP4, WebM",
+  any: "JPEG, PNG, WebP, GIF, SVG, MP4, WebM",
+};
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function isVideo(mime: string) {
+function isVideo(mime: string): boolean {
   return mime.startsWith("video/");
+}
+
+function matchesAccept(mime: string, accept: AcceptKind): boolean {
+  if (accept === "image") return !isVideo(mime);
+  if (accept === "video") return isVideo(mime);
+  return true;
 }
 
 interface AssetPickerProps {
@@ -26,7 +49,7 @@ interface AssetPickerProps {
   open: boolean;
   onClose: () => void;
   onSelect: (url: string) => void;
-  accept?: "image" | "video" | "any";
+  accept?: AcceptKind;
 }
 
 export function AssetPicker({ siteId, open, onClose, onSelect, accept = "any" }: AssetPickerProps) {
@@ -70,20 +93,10 @@ export function AssetPicker({ siteId, open, onClose, onSelect, accept = "any" }:
     handleFiles(e.dataTransfer.files);
   }
 
-  const acceptAttr = accept === "image"
-    ? "image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
-    : accept === "video"
-    ? "video/mp4,video/webm"
-    : "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,video/mp4,video/webm";
-
-  const visibleAssets = assets?.filter(a =>
-    accept === "image" ? !isVideo(a.mime_type)
-    : accept === "video" ? isVideo(a.mime_type)
-    : true
-  ) ?? [];
+  const visibleAssets = assets?.filter((a) => matchesAccept(a.mime_type, accept)) ?? [];
 
   return (
-    <Dialog open={open} onOpenChange={o => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="tw-max-w-2xl tw-max-h-[80vh] tw-flex tw-flex-col">
         <DialogHeader>
           <DialogTitle>Media library</DialogTitle>
@@ -110,7 +123,7 @@ export function AssetPicker({ siteId, open, onClose, onSelect, accept = "any" }:
                 Drop a file or click to browse
               </p>
               <p className="tw-text-xs tw-text-muted-foreground tw-mt-1">
-                {accept === "video" ? "MP4, WebM" : accept === "image" ? "JPEG, PNG, WebP, GIF, SVG" : "JPEG, PNG, WebP, GIF, SVG, MP4, WebM"} · Max 50 MB
+                {ACCEPT_HINT[accept]} · Max 50 MB
               </p>
             </>
           )}
@@ -119,7 +132,7 @@ export function AssetPicker({ siteId, open, onClose, onSelect, accept = "any" }:
         <input
           ref={fileInputRef}
           type="file"
-          accept={acceptAttr}
+          accept={ACCEPT_ATTR[accept]}
           className="tw-hidden"
           onChange={e => handleFiles(e.target.files)}
         />

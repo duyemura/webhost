@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
-import { putFile, deletePrefix } from "./r2.js";
+import { putFile, getFile, deleteFile } from "./r2.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
@@ -30,11 +30,31 @@ export async function storeAsset(
   return assetUrl(siteId, filename);
 }
 
+export interface ReadAssetResult {
+  body: unknown;
+  cacheControl: string;
+}
+
+export async function readAsset(siteId: string, filename: string): Promise<ReadAssetResult | null> {
+  if (useR2) {
+    const body = await getFile(`assets/${siteId}/${filename}`);
+    if (!body) return null;
+    return { body, cacheControl: "public, max-age=31536000, immutable" };
+  }
+  const filePath = localPath(siteId, filename);
+  if (!fs.existsSync(filePath)) return null;
+  return { body: fs.createReadStream(filePath), cacheControl: "public, max-age=3600" };
+}
+
 export async function removeAsset(siteId: string, filename: string): Promise<void> {
   if (useR2) {
-    await deletePrefix(`assets/${siteId}/${filename}`);
+    await deleteFile(`assets/${siteId}/${filename}`);
   } else {
-    try { fs.unlinkSync(localPath(siteId, filename)); } catch { /* already gone */ }
+    try {
+      fs.unlinkSync(localPath(siteId, filename));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
   }
 }
 
@@ -42,8 +62,3 @@ export function assetUrl(siteId: string, filename: string): string {
   return `/api/sites/${siteId}/assets/${filename}`;
 }
 
-export function getLocalAssetPath(siteId: string, filename: string): string {
-  return localPath(siteId, filename);
-}
-
-export { useR2 };

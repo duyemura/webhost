@@ -51,9 +51,9 @@ function mediaLayers(videoUrl: string | undefined, imageUrl: string | undefined)
 function renderDefault(section: Record<string, unknown>, profile: BusinessProfile | null): string {
   const s = section as unknown as HeroFields;
   const bg = s.background;
-  const hasMedia = !!(s.background_video_url || (bg?.style === "image" && bg.value));
-  const videoUrl = s.background_video_url;
-  const imageUrl = bg?.style === "image" ? bg.value : undefined;
+  const videoUrl = s.background_video_url || undefined;
+  const imageUrl = (bg?.style === "image" && bg.value) ? bg.value : (s.image_url || undefined);
+  const hasMedia = !!(videoUrl || imageUrl);
 
   let cls = "block-hero";
   let inlineStyle = "";
@@ -83,8 +83,8 @@ function renderDefault(section: Record<string, unknown>, profile: BusinessProfil
 function renderDI(section: Record<string, unknown>, profile: BusinessProfile | null): string {
   const s = section as unknown as HeroFields;
   const bg = s.background;
-  const videoUrl = s.background_video_url;
-  const imageUrl = bg?.style === "image" ? bg.value : undefined;
+  const videoUrl = s.background_video_url || undefined;
+  const imageUrl = (bg?.style === "image" && bg.value) ? bg.value : (s.image_url || undefined);
   const hasMedia = !!(videoUrl || imageUrl);
 
   const eyebrowEl = s.eyebrow ? `${diEyebrow(interpolate(s.eyebrow, profile))}\n      ` : "";

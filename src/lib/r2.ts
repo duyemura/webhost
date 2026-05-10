@@ -1,8 +1,11 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
+  type GetObjectCommandOutput,
 } from "@aws-sdk/client-s3";
 import { config } from "../config.js";
 
@@ -19,6 +22,15 @@ const Bucket = config.cloudflare.r2Bucket;
 
 export async function putFile(key: string, body: Buffer, contentType: string): Promise<void> {
   await r2.send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType }));
+}
+
+export async function getFile(key: string): Promise<GetObjectCommandOutput["Body"]> {
+  const obj = await r2.send(new GetObjectCommand({ Bucket, Key: key }));
+  return obj.Body;
+}
+
+export async function deleteFile(key: string): Promise<void> {
+  await r2.send(new DeleteObjectCommand({ Bucket, Key: key }));
 }
 
 export async function deletePrefix(prefix: string): Promise<void> {

@@ -12,6 +12,8 @@
       "headline": "FORGE YOUR\nSTRONGEST SELF",
       "accent_words": ["STRONGEST"],
       "subheadline": "Elite coaching. Real results. No excuses.",
+      "image_url": "",
+      "background_video_url": "",
       "cta_primary": { "text": "Start today", "url": "#intro-offer" },
       "cta_secondary": { "text": "See our programs", "url": "#programs" },
       "stats_bar": [

@@ -823,10 +823,8 @@ function TemplatePickerEmptyState({
 }: {
   siteId: string;
   onApplied: () => void;
-}) {
+}): React.ReactElement {
   const queryClient = useQueryClient();
-  const [applying, setApplying] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["templates"],
@@ -838,10 +836,8 @@ function TemplatePickerEmptyState({
     queryFn: getPresets,
   });
 
-  async function applyTemplate(templateId: string, themePreset: string) {
-    setApplying(templateId);
-    setError(null);
-    try {
+  const applyMutation = useMutation({
+    mutationFn: async ({ templateId, themePreset }: { templateId: string; themePreset: string }) => {
       const tpl = await getTemplate(templateId);
       const spec: SiteSpec = {
         version: 1,
@@ -850,14 +846,15 @@ function TemplatePickerEmptyState({
       const theme = (presets?.[themePreset] ?? DEFAULT_THEME) as Theme;
       await updateSpec(siteId, spec);
       await updateTheme(siteId, theme, themePreset);
-      queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
+    },
+    onSuccess: () => {
       onApplied();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to apply template.");
-    } finally {
-      setApplying(null);
-    }
-  }
+    },
+    onSettled: () => {
+      // Always sync cache — spec may have been partially applied even on error
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -868,6 +865,13 @@ function TemplatePickerEmptyState({
     );
   }
 
+  const applyingId = applyMutation.isPending ? applyMutation.variables?.templateId : null;
+  const errorMessage = applyMutation.error instanceof Error
+    ? applyMutation.error.message
+    : applyMutation.error
+      ? "Failed to apply template."
+      : null;
+
   return (
     <div className="tw-space-y-4 tw-py-4">
       <div>
@@ -877,7 +881,7 @@ function TemplatePickerEmptyState({
         </p>
       </div>
       <div className="tw-space-y-2">
-        {templates?.map(tpl => (
+        {templates?.map((tpl) => (
           <div
             key={tpl.id}
             className="tw-flex tw-items-start tw-gap-3 tw-rounded-lg tw-border tw-border-border tw-p-4"
@@ -891,9 +895,9 @@ function TemplatePickerEmptyState({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => applyTemplate(tpl.id, tpl.theme_preset)}
-              isSubmitting={applying === tpl.id}
-              disabled={applying !== null}
+              onClick={() => applyMutation.mutate({ templateId: tpl.id, themePreset: tpl.theme_preset })}
+              isSubmitting={applyingId === tpl.id}
+              disabled={applyMutation.isPending}
               className="tw-shrink-0"
             >
               Use template
@@ -901,7 +905,7 @@ function TemplatePickerEmptyState({
           </div>
         ))}
       </div>
-      {error && <p className="tw-text-sm tw-text-error">{error}</p>}
+      {errorMessage && <p className="tw-text-sm tw-text-error">{errorMessage}</p>}
     </div>
   );
 }

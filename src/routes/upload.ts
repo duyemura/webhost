@@ -81,11 +81,23 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const entries = zip.getEntries();
+
+    // Detect a single root directory wrapping all files (e.g. "uyemura-fitness/")
+    // and strip it so files land at the site root instead.
+    const fileEntries = entries.filter((e) => !e.isDirectory);
+    const topDirs = new Set(
+      fileEntries.map((e) => e.entryName.split("/")[0])
+    );
+    const rootDir =
+      topDirs.size === 1 && fileEntries.every((e) => e.entryName.includes("/"))
+        ? `${[...topDirs][0]}/`
+        : "";
+
     let extracted = 0;
 
-    for (const entry of entries) {
-      if (entry.isDirectory) continue;
-      const entryPath = entry.entryName;
+    for (const entry of fileEntries) {
+      const entryPath = rootDir ? entry.entryName.slice(rootDir.length) : entry.entryName;
+      if (!entryPath) continue;
       if (!isSafeEntryPath(entryPath)) continue;
 
       const normalizedPath = path.normalize(entryPath);

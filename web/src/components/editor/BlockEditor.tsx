@@ -48,6 +48,17 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, pu
   // spec/theme helpers always return new references on real changes — reference equality is sufficient
   const dirty = localSpec !== savedSpec || localTheme !== savedTheme;
 
+  // Auto-save 1.5 s after the last change so the server stays in sync without requiring a manual save.
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doSaveRef = useRef<() => void>(() => {});
+  doSaveRef.current = () => saveMutation.mutate();
+  useEffect(() => {
+    if (!dirty) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { doSaveRef.current(); }, 1500);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [dirty, localSpec, localTheme]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const specChanged = localSpec !== savedSpec;
@@ -232,21 +243,27 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, pu
 
       {/* Save bar */}
       <div className="tw-flex tw-items-center tw-justify-between tw-py-3 tw-border-t tw-border-border">
-        {dirty ? (
+        {saveMutation.isPending ? (
+          <span className="tw-text-sm tw-text-muted-foreground">Saving…</span>
+        ) : dirty ? (
           <span className="tw-flex tw-items-center tw-gap-1.5 tw-text-sm tw-text-warning">
             <AlertCircle className="tw-h-4 tw-w-4" />
-            Unsaved changes
+            Saving in a moment…
           </span>
         ) : (
           <span className="tw-text-sm tw-text-muted-foreground">All changes saved</span>
         )}
         <Button
           size="sm"
+          variant="outline"
           disabled={!dirty || saveMutation.isPending}
           isSubmitting={saveMutation.isPending}
-          onClick={() => saveMutation.mutate()}
+          onClick={() => {
+            if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+            saveMutation.mutate();
+          }}
         >
-          Save changes
+          Save now
         </Button>
       </div>
 

@@ -78,6 +78,7 @@ export function AssetPicker({ siteId, open, onClose, onSelect, accept = "any" }:
   const deleteMutation = useMutation({
     mutationFn: (assetId: string) => deleteAsset(siteId, assetId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sites", siteId, "assets"] }),
+    onError: (err: Error) => setUploadError(err.message),
   });
 
   function handleFiles(files: FileList | null) {

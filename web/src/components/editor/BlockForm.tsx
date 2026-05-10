@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Input, Textarea, Switch, Label, Button } from "@pushpress/pushpress-ui";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Plus, Trash2 } from "lucide-react";
 import { inferFieldType, isMediaUrlKey } from "../../lib/editor";
 import type { SiteSection } from "../../api";
 import { AssetPicker } from "./AssetPicker";
@@ -113,6 +113,27 @@ export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
               />
             )}
 
+            {inputType === "cta" && (
+              <CtaField
+                value={value as { text?: string; url?: string }}
+                onChange={(v) => setField(key, v)}
+              />
+            )}
+
+            {inputType === "string-array" && (
+              <StringArrayField
+                value={Array.isArray(value) ? (value as string[]) : []}
+                onChange={(v) => setField(key, v)}
+              />
+            )}
+
+            {inputType === "item-list" && (
+              <ItemListField
+                value={Array.isArray(value) ? (value as Record<string, string>[]) : []}
+                onChange={(v) => setField(key, v)}
+              />
+            )}
+
             {inputType === "json" && (
               <JsonField
                 fieldKey={key}
@@ -144,6 +165,158 @@ export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
           onClose={() => setPickerField(null)}
         />
       )}
+    </div>
+  );
+}
+
+function CtaField({
+  value,
+  onChange,
+}: {
+  value: { text?: string; url?: string };
+  onChange: (v: { text: string; url: string }) => void;
+}) {
+  return (
+    <div className="tw-space-y-1.5 tw-pl-2 tw-border-l-2 tw-border-border">
+      <div className="tw-space-y-1">
+        <Label className="tw-text-xs tw-text-muted-foreground">Button text</Label>
+        <Input
+          value={value?.text ?? ""}
+          onChange={(e) => onChange({ text: e.target.value, url: value?.url ?? "" })}
+          className="tw-text-sm"
+          placeholder="Get started"
+        />
+      </div>
+      <div className="tw-space-y-1">
+        <Label className="tw-text-xs tw-text-muted-foreground">Link URL</Label>
+        <Input
+          type="url"
+          value={value?.url ?? ""}
+          onChange={(e) => onChange({ text: value?.text ?? "", url: e.target.value })}
+          className="tw-text-sm"
+          placeholder="#contact"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StringArrayField({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  function updateItem(i: number, text: string) {
+    const next = [...value];
+    next[i] = text;
+    onChange(next);
+  }
+
+  function removeItem(i: number) {
+    onChange(value.filter((_, idx) => idx !== i));
+  }
+
+  function addItem() {
+    onChange([...value, ""]);
+  }
+
+  return (
+    <div className="tw-space-y-1.5">
+      {value.map((item, i) => (
+        <div key={i} className="tw-flex tw-gap-1.5">
+          <Input
+            value={item}
+            onChange={(e) => updateItem(i, e.target.value)}
+            className="tw-text-sm tw-flex-1"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => removeItem(i)}
+            className="tw-shrink-0 tw-text-muted-foreground hover:tw-text-error"
+          >
+            <Trash2 className="tw-h-3.5 tw-w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addItem}
+        className="tw-w-full tw-gap-1"
+      >
+        <Plus className="tw-h-3.5 tw-w-3.5" />
+        Add
+      </Button>
+    </div>
+  );
+}
+
+function ItemListField({
+  value,
+  onChange,
+}: {
+  value: Record<string, string>[];
+  onChange: (v: Record<string, string>[]) => void;
+}) {
+  const keys = value.length > 0 ? Object.keys(value[0]) : [];
+
+  function updateItem(i: number, field: string, text: string) {
+    const next = value.map((item, idx) => idx === i ? { ...item, [field]: text } : item);
+    onChange(next);
+  }
+
+  function removeItem(i: number) {
+    onChange(value.filter((_, idx) => idx !== i));
+  }
+
+  function addItem() {
+    const blank = Object.fromEntries(keys.map((k) => [k, ""]));
+    onChange([...value, blank]);
+  }
+
+  return (
+    <div className="tw-space-y-2">
+      {value.map((item, i) => (
+        <div key={i} className="tw-space-y-1 tw-pl-2 tw-border-l-2 tw-border-border">
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <span className="tw-text-xs tw-text-muted-foreground">Item {i + 1}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => removeItem(i)}
+              className="tw-text-muted-foreground hover:tw-text-error"
+            >
+              <Trash2 className="tw-h-3.5 tw-w-3.5" />
+            </Button>
+          </div>
+          {keys.map((field) => (
+            <div key={field} className="tw-space-y-0.5">
+              <Label className="tw-text-xs tw-text-muted-foreground">{toFieldLabel(field)}</Label>
+              <Input
+                value={item[field] ?? ""}
+                onChange={(e) => updateItem(i, field, e.target.value)}
+                className="tw-text-sm"
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addItem}
+        className="tw-w-full tw-gap-1"
+      >
+        <Plus className="tw-h-3.5 tw-w-3.5" />
+        Add item
+      </Button>
     </div>
   );
 }

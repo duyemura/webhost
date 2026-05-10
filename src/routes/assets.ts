@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import multipart from "@fastify/multipart";
 import { db } from "../db/client.js";
+import type { AllowedMimeType } from "../db/types.js";
 import { storeAsset, removeAsset, readAsset } from "../lib/storage.js";
 
 const ALLOWED_MIME = new Set([
@@ -102,7 +103,7 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
         site_id: id,
         filename,
         original_name: data.filename ?? filename,
-        mime_type: mime,
+        mime_type: mime as AllowedMimeType,
         size: buffer.byteLength,
       })
       .returningAll()

@@ -81,14 +81,25 @@ export type BusinessProfile = Selectable<BusinessProfilesTable>;
 export type NewBusinessProfile = Insertable<BusinessProfilesTable>;
 export type BusinessProfileUpdate = Updateable<BusinessProfilesTable>;
 
+export type AllowedMimeType =
+  | "image/jpeg"
+  | "image/png"
+  | "image/webp"
+  | "image/gif"
+  | "image/svg+xml"
+  | "video/mp4"
+  | "video/webm";
+
 export interface AssetsTable {
   id: Generated<string>;
   site_id: string;
   filename: string;
   original_name: string;
-  mime_type: string;
+  mime_type: AllowedMimeType;
   size: number;
   created_at: Generated<Date>;
 }
 
 export type Asset = Selectable<AssetsTable>;
+export type NewAsset = Insertable<AssetsTable>;
+export type AssetUpdate = Updateable<AssetsTable>;

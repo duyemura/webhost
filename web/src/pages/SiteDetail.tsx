@@ -128,6 +128,7 @@ function CustomDomainSection({
       setEditing(true);
       setValue("");
     },
+    onError: (err: Error) => setError(err.message),
   });
 
   function handleSave(e: React.FormEvent) {
@@ -269,6 +270,9 @@ function ScriptRow({
       queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
       onChanged?.();
     },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -276,6 +280,9 @@ function ScriptRow({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
       onChanged?.();
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["sites", siteId, "scripts"] });
     },
   });
 
@@ -496,6 +503,9 @@ function BusinessInfoSection({ siteId, onSaved }: { siteId: string; onSaved?: ()
       setTimeout(() => setSaved(false), 3000);
       onSaved?.();
     },
+    onError: () => {
+      setSaved(false);
+    },
   });
 
   function set(field: keyof BusinessProfile, value: string) {
@@ -606,6 +616,9 @@ function BusinessInfoSection({ siteId, onSaved }: { siteId: string; onSaved?: ()
           </div>
         </div>
         <div className="tw-flex tw-items-center tw-justify-end tw-gap-3">
+          {mutation.isError && (
+            <span className="tw-text-sm tw-text-error">Save failed. Please try again.</span>
+          )}
           {saved && (
             <span className="tw-text-sm tw-text-success">Saved.</span>
           )}
@@ -993,12 +1006,18 @@ export function SiteDetail() {
       queryClient.invalidateQueries({ queryKey: ["sites"] });
       navigate("/");
     },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["sites", id] });
+    },
   });
 
   const publishMutation = useMutation({
     mutationFn: () => publishSite(id!),
     onSuccess: (data) => {
       queryClient.setQueryData(["sites", id], { ...data, cname_target: site?.cname_target });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["sites", id] });
     },
   });
 
@@ -1034,6 +1053,9 @@ export function SiteDetail() {
           )}
         </div>
         <div className="tw-flex tw-items-center tw-gap-2 tw-shrink-0">
+          {publishMutation.isError && (
+            <span className="tw-text-xs tw-text-error">Publish failed.</span>
+          )}
           {isPublished && (
             hasUnpublishedChanges ? (
               <Button
@@ -1112,6 +1134,9 @@ export function SiteDetail() {
                     <AlertDialogDescription>
                       This will permanently delete the site and all its content. This cannot be undone.
                     </AlertDialogDescription>
+                    {deleteSiteMutation.isError && (
+                      <p className="tw-text-sm tw-text-error tw-mt-2">Delete failed. Please try again.</p>
+                    )}
                     <div className="tw-flex tw-justify-end tw-gap-2 tw-mt-4">
                       <AlertDialogCancel disabled={deleteSiteMutation.isPending}>Cancel</AlertDialogCancel>
                       <Button

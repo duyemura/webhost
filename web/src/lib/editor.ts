@@ -1,11 +1,20 @@
-export type FieldInputType = "text" | "textarea" | "url" | "switch" | "json";
+export type FieldInputType = "text" | "textarea" | "url" | "switch" | "cta" | "string-array" | "item-list" | "json";
 
-const TEXTAREA_KEYS = new Set(["body", "description", "html", "quote", "answer", "bio", "details", "subheadline"]);
-const TEXT_KEYS = new Set(["headline", "title", "name", "label", "period", "price", "value", "tag", "role", "author", "platform", "date", "icon"]);
+const TEXTAREA_KEYS = new Set(["body", "description", "html", "quote", "answer", "bio", "details", "subheadline", "headline"]);
+const TEXT_KEYS = new Set(["title", "name", "label", "period", "price", "value", "tag", "role", "author", "platform", "date", "icon"]);
 const MEDIA_URL_KEYS = new Set(["image_url", "photo_url", "background_video_url", "video_url", "logo_url", "thumbnail_url"]);
 
 export function isMediaUrlKey(key: string): boolean {
   return MEDIA_URL_KEYS.has(key) || key.endsWith("_image_url") || key.endsWith("_video_url");
+}
+
+function isCtaObject(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    ("text" in value || "url" in value)
+  );
 }
 
 export function inferFieldType(key: string, value: unknown): FieldInputType {
@@ -14,6 +23,11 @@ export function inferFieldType(key: string, value: unknown): FieldInputType {
   if (TEXTAREA_KEYS.has(key)) return "textarea";
   if (TEXT_KEYS.has(key)) return "text";
   if (typeof value === "string") return "text";
+  if (isCtaObject(value)) return "cta";
+  if (Array.isArray(value)) {
+    if (value.length === 0 || typeof value[0] === "string") return "string-array";
+    if (typeof value[0] === "object" && value[0] !== null) return "item-list";
+  }
   return "json";
 }
 

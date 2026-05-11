@@ -20,6 +20,7 @@ export interface PlaceSearchResult {
   website: string | null;
   types: string[];
   rating: number | null;
+  reviewCount: number | null;
   isFitness: boolean;
 }
 
@@ -64,6 +65,7 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
           "places.websiteUri",
           "places.types",
           "places.rating",
+          "places.userRatingCount",
         ].join(","),
       },
       body: JSON.stringify({
@@ -92,6 +94,7 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
         website: p.websiteUri ? String(p.websiteUri) : null,
         types,
         rating: p.rating != null ? Number(p.rating) : null,
+        reviewCount: p.userRatingCount != null ? Number(p.userRatingCount) : null,
         isFitness: types.some(t => FITNESS_TYPES.has(t)),
       };
     });
@@ -113,7 +116,7 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
 
     const fieldMask = [
       "id", "displayName", "formattedAddress", "nationalPhoneNumber",
-      "websiteUri", "types", "rating", "addressComponents",
+      "websiteUri", "types", "rating", "userRatingCount", "addressComponents",
       "regularOpeningHours.weekdayDescriptions",
     ].join(",");
 
@@ -147,6 +150,7 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
       website: p.websiteUri ? String(p.websiteUri) : null,
       types,
       rating: p.rating != null ? Number(p.rating) : null,
+      reviewCount: p.userRatingCount != null ? Number(p.userRatingCount) : null,
       isFitness: types.some(t => FITNESS_TYPES.has(t)),
       city: extractAddressComponent(components, "locality"),
       state: extractAddressComponent(components, "administrative_area_level_1"),

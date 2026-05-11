@@ -69,6 +69,10 @@ const sql = `
   -- Phase 8: Brand kit (colors, fonts, logo — separate from layout preset)
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS brand_kit JSONB;
 
+  -- Social proof: GMB rating + review count stored on business profile
+  ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS gmb_rating NUMERIC(3,1);
+  ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS gmb_review_count INTEGER;
+
   -- Phase 7: Media asset storage
   CREATE TABLE IF NOT EXISTS assets (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

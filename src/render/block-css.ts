@@ -682,6 +682,47 @@ export const BLOCK_CSS = `
   .di-stats-bar { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ── Social proof bar (auto-injected after hero) ── */
+.social-proof-bar {
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  overflow: hidden;
+  padding: 0.75rem 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+}
+.social-proof-bar__track {
+  display: flex;
+  width: max-content;
+  animation: sp-scroll var(--sp-duration, 30s) linear infinite;
+}
+.social-proof-bar__item {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 0 2rem;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+.social-proof-bar__item::after {
+  content: '·';
+  margin-left: 2rem;
+  opacity: 0.5;
+}
+.social-proof-bar__item:first-child {
+  font-weight: 700;
+  opacity: 1;
+}
+@keyframes sp-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .social-proof-bar__track { animation: none; }
+}
+
 /* ── DI marquee ── */
 .block-marquee {
   background: var(--color-primary);

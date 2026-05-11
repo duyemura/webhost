@@ -75,11 +75,11 @@ describe("googleFontsUrl()", () => {
 });
 
 describe("THEME_PRESETS", () => {
-  const presetNames = ["bold", "professional", "warm", "dark", "minimal", "energetic"];
+  const presetNames = ["bold", "professional", "warm", "dark", "minimal"];
 
-  it("exports all 6 named presets", () => {
+  it("exports all 5 named presets", () => {
     expect(Object.keys(THEME_PRESETS)).toEqual(expect.arrayContaining(presetNames));
-    expect(Object.keys(THEME_PRESETS)).toHaveLength(6);
+    expect(Object.keys(THEME_PRESETS)).toHaveLength(5);
   });
 
   for (const name of presetNames) {
@@ -94,8 +94,8 @@ describe("THEME_PRESETS", () => {
     });
   }
 
-  it("bold preset has red primary color", () => {
-    expect(THEME_PRESETS["bold"].colors.primary).toBe("#e63946");
+  it("bold preset has dark primary color", () => {
+    expect(THEME_PRESETS["bold"].colors.primary).toBe("#111827");
   });
 
   it("dark preset has dark background", () => {

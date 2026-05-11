@@ -77,6 +77,8 @@ export interface BusinessProfilesTable {
   country: Generated<string>;
   website_url: string | null;
   hours: string | null;
+  gmb_rating: number | null;
+  gmb_review_count: number | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

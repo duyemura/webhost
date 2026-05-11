@@ -333,6 +333,7 @@ export interface PlaceSearchResult {
   website: string | null;
   types: string[];
   rating: number | null;
+  reviewCount: number | null;
   isFitness: boolean;
 }
 

@@ -4,6 +4,7 @@ import { DEFAULT_THEME } from "../blocks/types.js";
 import type { BrandKit } from "../lib/brand.js";
 import { registry } from "../blocks/index.js";
 import { buildPage } from "./page.js";
+import { buildSocialProofBar } from "./social-proof.js";
 
 function applyBrandKit(theme: Theme, brandKit: BrandKit): Theme {
   return {
@@ -40,12 +41,19 @@ export async function renderSpecPage(
   const page = spec.pages.find(p => p.slug === slug);
   if (!page) return null;
 
+  const socialProofBar = buildSocialProofBar(profile);
+  let socialProofInjected = false;
+
   const sectionsHtml = page.sections
     .map(s => {
       const html = registry.render(s, theme, profile);
       const bg = (s as Record<string, unknown>).bg as string | undefined;
-      if (!bg || bg === "default") return html;
-      return `<div class="section-bg--${bg}">${html}</div>`;
+      const wrapped = !bg || bg === "default" ? html : `<div class="section-bg--${bg}">${html}</div>`;
+      if (s.type === "hero" && socialProofBar && !socialProofInjected) {
+        socialProofInjected = true;
+        return `${wrapped}\n${socialProofBar}`;
+      }
+      return wrapped;
     })
     .join("\n");
 

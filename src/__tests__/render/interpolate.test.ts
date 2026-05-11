@@ -16,6 +16,8 @@ const profile: BusinessProfile = {
   zip: "89101",
   country: "US",
   website_url: null,
+  gmb_rating: null,
+  gmb_review_count: null,
   created_at: new Date(),
   updated_at: new Date(),
 };

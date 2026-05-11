@@ -18,6 +18,8 @@ const profile: BusinessProfile = {
   zip: null,
   country: "US",
   website_url: null,
+  gmb_rating: null,
+  gmb_review_count: null,
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -60,10 +62,10 @@ describe("hero renderer", () => {
     expect(html).toContain("block-hero--dark");
   });
 
-  it("adds image background style attribute", () => {
+  it("adds media class and img tag for image background", () => {
     const html = render(section({ headline: "H", background: { style: "image", value: "https://example.com/bg.jpg" } }), theme, null);
-    expect(html).toContain("block-hero--image");
-    expect(html).toContain("background-image:url('https://example.com/bg.jpg')");
+    expect(html).toContain("block-hero--media");
+    expect(html).toContain('src="https://example.com/bg.jpg"');
   });
 
   it("adds color background style", () => {

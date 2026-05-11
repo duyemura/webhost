@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Globe, ExternalLink, Wand2, Import, FileEdit, CheckCircle2, AlertTriangle, Loader2, MapPin, Phone, Search, X } from "lucide-react";
+import { Plus, Globe, ExternalLink, Wand2, CheckCircle2, AlertTriangle, Loader2, MapPin, Phone, Search, X } from "lucide-react";
 import {
   Button,
   Card,
@@ -21,7 +21,7 @@ import {
 import {
   getSites,
   createSite,
-  slugify,
+  generateSite,
   searchPlaces,
   getPlaceDetail,
   postQualitySignal,
@@ -93,7 +93,7 @@ function SiteCard({ site }: { site: Site }) {
   );
 }
 
-type BuildMode = "generate" | "import" | "blank";
+type BuildMode = "import" | "generate";
 
 function CreateSiteDialog({
   open,
@@ -105,14 +105,10 @@ function CreateSiteDialog({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Step 1: name/slug
-  const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState("");
-  const [customSlug, setCustomSlug] = useState("");
-
-  // Step 2: build mode
   const [mode, setMode] = useState<BuildMode>("import");
   const [theme, setTheme] = useState<ThemePreset>("bold");
+  const [genName, setGenName] = useState("");
+  const [genPrompt, setGenPrompt] = useState("");
 
   // GMB search state
   const [gmbQuery, setGmbQuery] = useState("");
@@ -137,18 +133,14 @@ function CreateSiteDialog({
   const [pendingSiteId, setPendingSiteId] = useState<string | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  // Derived: the URL to scan — GMB website takes priority, manual input is fallback for both
-  // "place without website" (inline input) and "no place selected" (outer manual toggle) cases
+  // GMB website takes priority; manual input is fallback
   const importUrl = selectedPlace?.website || importUrlManual;
 
-  const slug = customSlug || slugify(name);
-
   function reset() {
-    setStep(1);
-    setName("");
-    setCustomSlug("");
-    setMode("generate");
+    setMode("import");
     setTheme("bold");
+    setGenName("");
+    setGenPrompt("");
     setGmbQuery("");
     setGmbResults([]);
     setGmbSearching(false);
@@ -204,19 +196,19 @@ function CreateSiteDialog({
     }
   }
 
+  function handleSelectGenerate() {
+    setMode("generate");
+    setGmbQuery("");
+    setGmbResults([]);
+    setSelectedPlace(null);
+  }
+
   function handleClose(open: boolean) {
     if (!open) {
       importAbortRef.current?.abort();
       reset();
     }
     onOpenChange(open);
-  }
-
-  // Step 1 → 2
-  function handleNext(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setStep(2);
   }
 
   function addLog(line: string) {
@@ -255,6 +247,8 @@ function CreateSiteDialog({
             country: selectedPlace.country ?? "US",
             website_url: selectedPlace.website,
             hours: selectedPlace.hours,
+            gmb_rating: selectedPlace.rating,
+            gmb_review_count: selectedPlace.reviewCount,
           },
         } : {}),
       }),
@@ -362,15 +356,17 @@ function CreateSiteDialog({
     return finalSite && finalSummary ? { site: finalSite, summary: finalSummary } : null;
   }
 
-  // Create site, then run import or navigate immediately
   const createMutation = useMutation({
     mutationFn: async () => {
-      const site = await createSite({ name, ...(customSlug ? { slug: customSlug } : {}) });
-      if (mode === "import") {
-        const result = await runImport(site.id);
-        return { site: result?.site ?? site, summary: result?.summary ?? null, created: site };
+      if (mode === "generate") {
+        const site = await createSite({ name: genName.trim() });
+        const generated = await generateSite(site.id, { prompt: genPrompt, theme_preset: theme });
+        return { site: generated, summary: null, created: site };
       }
-      return { site, summary: null, created: site };
+      const name = selectedPlace?.name ?? importUrlManual;
+      const site = await createSite({ name });
+      const result = await runImport(site.id);
+      return { site: result?.site ?? site, summary: result?.summary ?? null, created: site };
     },
     onSuccess: ({ site, summary, created }) => {
       queryClient.invalidateQueries({ queryKey: ["sites"] });
@@ -396,414 +392,343 @@ function CreateSiteDialog({
   });
 
   const isPending = createMutation.isPending || isImporting;
-  const canSubmit =
-    name.trim().length > 0 &&
-    (mode !== "import" || importUrl.trim().length > 0);
-
-  const importReady = mode === "import" && importUrl.trim().length > 0;
-
+  const canSubmit = mode === "generate"
+    ? genName.trim().length > 0 && genPrompt.trim().length > 0
+    : importUrl.trim().length > 0;
   const isScanning = isPending && mode === "import";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="tw-max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {step === 1 ? "Name your site" : "How do you want to build it?"}
-          </DialogTitle>
+          <DialogTitle>Build your website</DialogTitle>
         </DialogHeader>
 
-        {/* Step 1: Name + slug */}
-        {step === 1 && (
-          <form onSubmit={handleNext} className="tw-space-y-4">
-            <div className="tw-space-y-1.5">
-              <Label htmlFor="site-name">Site name</Label>
-              <Input
-                id="site-name"
-                placeholder="My Gym Website"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="tw-space-y-1.5">
-              <Label htmlFor="site-slug">
-                Slug{" "}
-                <span className="tw-text-muted-foreground tw-font-normal">(optional)</span>
-              </Label>
-              <Input
-                id="site-slug"
-                placeholder={slug || "auto-generated"}
-                value={customSlug}
-                onChange={(e) => setCustomSlug(slugify(e.target.value))}
-              />
-              {slug && (
-                <p className="tw-text-xs tw-text-muted-foreground">
-                  Your site will be at{" "}
-                  <span className="tw-font-mono tw-text-foreground">{slug}.localhost:3000</span>
-                </p>
-              )}
-            </div>
-            <div className="tw-flex tw-justify-end tw-gap-2 tw-pt-1">
-              <Button type="button" variant="outline" onClick={() => handleClose(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!name.trim()}>
-                Next
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {/* Step 2: Build mode */}
-        {step === 2 && (
-          <div className="tw-space-y-4">
-            {/* Mode picker — import is primary, AI + blank are secondary fallbacks */}
+        <div className="tw-space-y-4">
+          {/* ── GMB search (import mode, no selection yet) ── */}
+          {mode === "import" && !selectedPlace && !loadingPlace && !isScanning && !importSummary && (
             <div className="tw-space-y-2">
+              <Label htmlFor="gmb-search">Find your business on Google</Label>
+              <div className="tw-relative">
+                <Search className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground tw-pointer-events-none" />
+                <Input
+                  id="gmb-search"
+                  placeholder="Iron Peak CrossFit Denver"
+                  value={gmbQuery}
+                  onChange={(e) => { setGmbQuery(e.target.value); setGmbResults([]); }}
+                  className="tw-pl-9"
+                  autoFocus
+                  disabled={isPending}
+                />
+                {gmbSearching && (
+                  <Loader2 className="tw-absolute tw-right-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
+                )}
+              </div>
+
+              {/* Inline scrollable results — ~3 items visible, generate always last */}
+              <div
+                className="tw-rounded-lg tw-border tw-border-border tw-divide-y tw-divide-border tw-overflow-y-auto"
+                style={{ maxHeight: "195px" }}
+              >
+                {gmbResults.map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleSelectPlace(r)}
+                    className="tw-w-full tw-text-left tw-px-3 tw-py-3 tw-bg-background hover:tw-bg-muted tw-transition-colors"
+                  >
+                    <p className="tw-text-sm tw-font-medium tw-text-foreground">{r.name}</p>
+                    <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{r.address}</p>
+                    {!r.website && (
+                      <p className="tw-text-xs tw-text-warning tw-mt-0.5">No website listed</p>
+                    )}
+                  </button>
+                ))}
+                {/* Always last */}
+                <button
+                  type="button"
+                  onClick={handleSelectGenerate}
+                  className="tw-w-full tw-flex tw-items-center tw-gap-3 tw-px-3 tw-py-3 tw-text-left tw-bg-background hover:tw-bg-muted tw-transition-colors"
+                >
+                  <Wand2 className="tw-h-4 tw-w-4 tw-shrink-0 tw-text-muted-foreground" />
+                  <div>
+                    <p className="tw-text-sm tw-font-medium tw-text-foreground">Generate website using AI</p>
+                    <p className="tw-text-xs tw-text-muted-foreground">Describe your business and let AI build your site</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Manual URL fallback */}
               <button
                 type="button"
-                onClick={() => setMode("import")}
-                className={`tw-w-full tw-flex tw-items-center tw-gap-3 tw-rounded-lg tw-border tw-px-4 tw-py-3 tw-text-left tw-transition-all ${
-                  mode === "import"
-                    ? "tw-border-foreground tw-bg-foreground/5"
-                    : "tw-border-border hover:tw-border-foreground/40"
-                }`}
+                onClick={() => setManualUrl(v => !v)}
+                className="tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-underline tw-underline-offset-2"
               >
-                <Import className={`tw-h-5 tw-w-5 tw-shrink-0 ${mode === "import" ? "tw-text-foreground" : "tw-text-muted-foreground"}`} />
-                <div>
-                  <p className={`tw-text-sm tw-font-medium ${mode === "import" ? "tw-text-foreground" : "tw-text-muted-foreground"}`}>
-                    Import existing site
-                  </p>
-                  <p className="tw-text-xs tw-text-muted-foreground">Find your business on Google and scan your current website</p>
-                </div>
+                {manualUrl ? "Hide manual URL" : "Enter website URL manually instead"}
               </button>
+              {manualUrl && (
+                <Input
+                  type="url"
+                  placeholder="https://yourgym.com"
+                  value={importUrlManual}
+                  onChange={(e) => { setImportUrlManual(e.target.value); setImportError(null); }}
+                  disabled={isPending}
+                />
+              )}
+            </div>
+          )}
+
+          {/* ── Loading place ── */}
+          {loadingPlace && (
+            <div className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted">
+              <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
+              <p className="tw-text-sm tw-text-muted-foreground">Loading business details…</p>
+            </div>
+          )}
+
+          {/* ── Selected business card ── */}
+          {mode === "import" && selectedPlace && !loadingPlace && !isScanning && !importSummary && (
+            <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
+              <div className="tw-flex tw-items-start tw-justify-between tw-gap-2">
+                <div>
+                  <p className="tw-text-sm tw-font-semibold tw-text-foreground">{selectedPlace.name}</p>
+                  {selectedPlace.rating && (
+                    <p className="tw-text-xs tw-text-muted-foreground">★ {selectedPlace.rating.toFixed(1)} on Google</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedPlace(null); setGmbQuery(""); setGmbResults([]); }}
+                  className="tw-text-muted-foreground hover:tw-text-foreground"
+                >
+                  <X className="tw-h-4 tw-w-4" />
+                </button>
+              </div>
+              {selectedPlace.address && (
+                <div className="tw-flex tw-items-start tw-gap-1.5">
+                  <MapPin className="tw-h-3.5 tw-w-3.5 tw-text-muted-foreground tw-shrink-0 tw-mt-0.5" />
+                  <p className="tw-text-xs tw-text-muted-foreground">{selectedPlace.address}</p>
+                </div>
+              )}
+              {selectedPlace.phone && (
+                <div className="tw-flex tw-items-center tw-gap-1.5">
+                  <Phone className="tw-h-3.5 tw-w-3.5 tw-text-muted-foreground tw-shrink-0" />
+                  <p className="tw-text-xs tw-text-muted-foreground">{selectedPlace.phone}</p>
+                </div>
+              )}
+              {selectedPlace.website ? (
+                <div className="tw-flex tw-items-center tw-gap-1.5">
+                  <Globe className="tw-h-3.5 tw-w-3.5 tw-text-muted-foreground tw-shrink-0" />
+                  <p className="tw-text-xs tw-text-primary tw-truncate">{selectedPlace.website}</p>
+                </div>
+              ) : (
+                <div className="tw-space-y-1">
+                  <p className="tw-text-xs tw-text-warning">No website found on Google — enter it manually:</p>
+                  <Input
+                    type="url"
+                    placeholder="https://yourgym.com"
+                    value={importUrlManual}
+                    onChange={(e) => { setImportUrlManual(e.target.value); setImportError(null); }}
+                    disabled={isPending}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Generate with AI form ── */}
+          {mode === "generate" && !isScanning && (
+            <div className="tw-space-y-3">
+              <div className="tw-space-y-1.5">
+                <Label htmlFor="gen-name">Business name</Label>
+                <Input
+                  id="gen-name"
+                  placeholder="Iron Peak CrossFit"
+                  value={genName}
+                  onChange={(e) => setGenName(e.target.value)}
+                  autoFocus
+                  disabled={isPending}
+                />
+              </div>
+              <div className="tw-space-y-1.5">
+                <Label htmlFor="gen-prompt">Describe your business</Label>
+                <textarea
+                  id="gen-prompt"
+                  placeholder="CrossFit gym in Denver. We offer daily WOD classes, personal training, and open gym…"
+                  value={genPrompt}
+                  onChange={(e) => setGenPrompt(e.target.value)}
+                  rows={3}
+                  disabled={isPending}
+                  className="tw-w-full tw-rounded-md tw-border tw-border-border tw-bg-background tw-px-3 tw-py-2 tw-text-sm tw-text-foreground tw-placeholder-muted-foreground tw-resize-none focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-foreground/20 disabled:tw-opacity-50"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── Theme picker — shown once a business is selected or in generate mode ── */}
+          {!isScanning && !importSummary && (mode === "generate" || importUrl.trim().length > 0) && (
+            <div className="tw-space-y-1.5">
+              <Label>Theme</Label>
               <div className="tw-grid tw-grid-cols-2 tw-gap-2">
-                {(
-                  [
-                    { id: "generate", icon: Wand2, label: "Generate with AI", desc: "Describe your business" },
-                    { id: "blank", icon: FileEdit, label: "Start blank", desc: "Use the block editor" },
-                  ] as { id: BuildMode; icon: React.ElementType; label: string; desc: string }[]
-                ).map(({ id, icon: Icon, label, desc }) => (
+                {THEME_PRESETS.map(preset => (
                   <button
-                    key={id}
+                    key={preset}
                     type="button"
-                    onClick={() => setMode(id)}
-                    className={`tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border tw-p-2.5 tw-text-center tw-transition-all ${
-                      mode === id
-                        ? "tw-border-foreground tw-bg-foreground/5"
-                        : "tw-border-border hover:tw-border-foreground/40"
+                    disabled={isPending}
+                    onClick={() => setTheme(preset)}
+                    className={`tw-flex tw-flex-col tw-items-start tw-gap-0.5 tw-px-3 tw-py-2 tw-rounded-lg tw-text-left tw-border tw-transition-all ${
+                      theme === preset
+                        ? "tw-border-foreground tw-bg-foreground tw-text-background"
+                        : "tw-border-border tw-text-foreground hover:tw-border-foreground/50"
                     }`}
                   >
-                    <Icon className={`tw-h-4 tw-w-4 ${mode === id ? "tw-text-foreground" : "tw-text-muted-foreground"}`} />
-                    <p className={`tw-text-xs tw-font-medium tw-leading-tight ${mode === id ? "tw-text-foreground" : "tw-text-muted-foreground"}`}>
-                      {label}
-                    </p>
-                    <p className="tw-text-xs tw-text-muted-foreground tw-leading-tight">{desc}</p>
+                    <span className="tw-text-xs tw-font-medium">{THEME_PRESET_LABELS[preset]}</span>
+                    <span className={`tw-text-xs ${theme === preset ? "tw-text-background/70" : "tw-text-muted-foreground"}`}>
+                      {THEME_PRESET_DESCRIPTIONS[preset]}
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
+          )}
 
-            {/* Import: GMB search */}
-            {mode === "import" && !isScanning && !importSummary && (
-              <div className="tw-space-y-3">
-                {/* GMB search box */}
-                {!selectedPlace && (
-                  <div className="tw-space-y-1.5">
-                    <Label htmlFor="gmb-search">Find your business on Google</Label>
-                    <div className="tw-relative">
-                      <Search className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground tw-pointer-events-none" />
-                      <Input
-                        id="gmb-search"
-                        placeholder="Iron Peak CrossFit Denver"
-                        value={gmbQuery}
-                        onChange={(e) => { setGmbQuery(e.target.value); setGmbResults([]); }}
-                        className="tw-pl-9"
-                        autoFocus
-                        disabled={isPending}
-                      />
-                      {gmbSearching && (
-                        <Loader2 className="tw-absolute tw-right-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
-                      )}
-                      {/* Results dropdown — floats above modal content */}
-                      {gmbResults.length > 0 && (
-                        <div className="tw-absolute tw-left-0 tw-right-0 tw-top-full tw-mt-1 tw-rounded-lg tw-border tw-border-border tw-bg-background tw-shadow-lg tw-divide-y tw-divide-border tw-overflow-hidden" style={{ zIndex: 9999 }}>
-                          {gmbResults.map(r => (
-                            <button
-                              key={r.id}
-                              type="button"
-                              onClick={() => handleSelectPlace(r)}
-                              className="tw-w-full tw-text-left tw-px-3 tw-py-2.5 tw-bg-background hover:tw-bg-muted tw-transition-colors"
-                            >
-                              <p className="tw-text-sm tw-font-medium tw-text-foreground">{r.name}</p>
-                              <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{r.address}</p>
-                              {!r.website && (
-                                <p className="tw-text-xs tw-text-warning tw-mt-0.5">No website listed</p>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {!gmbResults.length && (
-                      <p className="tw-text-xs tw-text-muted-foreground">
-                        We&apos;ll pull your business info from Google and scan your website automatically.
-                      </p>
-                    )}
-
-                    {/* Manual URL fallback */}
-                    <button
-                      type="button"
-                      onClick={() => setManualUrl(v => !v)}
-                      className="tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-underline tw-underline-offset-2"
-                    >
-                      {manualUrl ? "Hide manual URL" : "Enter website URL manually instead"}
-                    </button>
-                    {manualUrl && (
-                      <Input
-                        type="url"
-                        placeholder="https://yourgym.com"
-                        value={importUrlManual}
-                        onChange={(e) => { setImportUrlManual(e.target.value); setImportError(null); }}
-                        disabled={isPending}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Selected business card */}
-                {loadingPlace && (
-                  <div className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted">
-                    <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
-                    <p className="tw-text-sm tw-text-muted-foreground">Loading business details…</p>
-                  </div>
-                )}
-                {selectedPlace && !loadingPlace && (
-                  <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-                    <div className="tw-flex tw-items-start tw-justify-between tw-gap-2">
-                      <div>
-                        <p className="tw-text-sm tw-font-semibold tw-text-foreground">{selectedPlace.name}</p>
-                        {selectedPlace.rating && (
-                          <p className="tw-text-xs tw-text-muted-foreground">★ {selectedPlace.rating.toFixed(1)} on Google</p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedPlace(null); setGmbQuery(""); setGmbResults([]); }}
-                        className="tw-text-muted-foreground hover:tw-text-foreground"
-                      >
-                        <X className="tw-h-4 tw-w-4" />
-                      </button>
-                    </div>
-                    {selectedPlace.address && (
-                      <div className="tw-flex tw-items-start tw-gap-1.5">
-                        <MapPin className="tw-h-3.5 tw-w-3.5 tw-text-muted-foreground tw-shrink-0 tw-mt-0.5" />
-                        <p className="tw-text-xs tw-text-muted-foreground">{selectedPlace.address}</p>
-                      </div>
-                    )}
-                    {selectedPlace.phone && (
-                      <div className="tw-flex tw-items-center tw-gap-1.5">
-                        <Phone className="tw-h-3.5 tw-w-3.5 tw-text-muted-foreground tw-shrink-0" />
-                        <p className="tw-text-xs tw-text-muted-foreground">{selectedPlace.phone}</p>
-                      </div>
-                    )}
-                    {selectedPlace.website ? (
-                      <div className="tw-flex tw-items-center tw-gap-1.5">
-                        <Globe className="tw-h-3.5 tw-w-3.5 tw-text-muted-foreground tw-shrink-0" />
-                        <p className="tw-text-xs tw-text-primary tw-truncate">{selectedPlace.website}</p>
-                      </div>
-                    ) : (
-                      <div className="tw-space-y-1">
-                        <p className="tw-text-xs tw-text-warning">No website found on Google — enter it manually:</p>
-                        <Input
-                          type="url"
-                          placeholder="https://yourgym.com"
-                          value={importUrlManual}
-                          onChange={(e) => { setImportUrlManual(e.target.value); setImportError(null); }}
-                          disabled={isPending}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Theme picker — only show when business/URL is ready */}
-                {importReady && (
-                  <div className="tw-space-y-1.5">
-                    <Label>Theme</Label>
-                    <div className="tw-grid tw-grid-cols-2 tw-gap-2">
-                      {THEME_PRESETS.map(preset => (
-                        <button
-                          key={preset}
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => setTheme(preset)}
-                          className={`tw-flex tw-flex-col tw-items-start tw-gap-0.5 tw-px-3 tw-py-2 tw-rounded-lg tw-text-left tw-border tw-transition-all ${
-                            theme === preset
-                              ? "tw-border-foreground tw-bg-foreground tw-text-background"
-                              : "tw-border-border tw-text-foreground hover:tw-border-foreground/50"
-                          }`}
-                        >
-                          <span className="tw-text-xs tw-font-medium">{THEME_PRESET_LABELS[preset]}</span>
-                          <span className={`tw-text-xs ${theme === preset ? "tw-text-background/70" : "tw-text-muted-foreground"}`}>{THEME_PRESET_DESCRIPTIONS[preset]}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Scanning progress log */}
-            {isScanning && importLog.length === 0 && (
-              <div className="tw-flex tw-items-center tw-gap-2 tw-rounded-lg tw-bg-muted tw-p-3">
-                <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
-                <p className="tw-text-sm tw-text-muted-foreground">Starting scan…</p>
-              </div>
-            )}
-            {importLog.length > 0 && (
-              <div className="tw-rounded-lg tw-bg-muted tw-p-3 tw-space-y-1 tw-max-h-44 tw-overflow-y-auto">
-                {importLog.map((line, i) => (
-                  <p
-                    key={i}
-                    className={`tw-text-xs tw-font-mono tw-leading-relaxed ${line.startsWith("───") ? "tw-text-muted-foreground" : "tw-text-foreground"}`}
-                  >
-                    {line}
-                  </p>
-                ))}
-                {aiStatus && (
-                  <div className="tw-flex tw-items-center tw-gap-1.5 tw-pt-0.5">
-                    <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
-                    <p className="tw-text-xs tw-font-mono tw-text-muted-foreground">{aiStatus}</p>
-                  </div>
-                )}
-                {isScanning && !aiStatus && (
-                  <div className="tw-flex tw-items-center tw-gap-1.5 tw-pt-0.5">
-                    <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
-                  </div>
-                )}
-                <div ref={logEndRef} />
-              </div>
-            )}
-
-            {/* Import error */}
-            {importError && (
-              <p className="tw-text-sm tw-text-error">{importError}</p>
-            )}
-
-            {/* Import success + rating */}
-            {importSummary && (
-              <div className="tw-space-y-3">
-                <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-                  <div className="tw-flex tw-items-center tw-gap-2">
-                    <CheckCircle2 className="tw-h-4 tw-w-4 tw-text-success tw-shrink-0" />
-                    <p className="tw-text-sm tw-font-medium">
-                      Imported {importSummary.pages_generated} pages · {importSummary.blocks_generated} blocks
-                    </p>
-                  </div>
-                  {importSummary.gaps.length > 0 && (
-                    <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1">
-                      <div className="tw-flex tw-items-center tw-gap-1.5">
-                        <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning tw-shrink-0" />
-                        <p className="tw-text-xs tw-font-medium tw-text-warning">
-                          {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} couldn&apos;t be fully mapped
-                        </p>
-                      </div>
-                      <ul className="tw-space-y-0.5">
-                        {importSummary.gaps.map((gap, i) => (
-                          <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+          {/* ── Scanning progress ── */}
+          {isScanning && importLog.length === 0 && (
+            <div className="tw-flex tw-items-center tw-gap-2 tw-rounded-lg tw-bg-muted tw-p-3">
+              <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
+              <p className="tw-text-sm tw-text-muted-foreground">Starting scan…</p>
+            </div>
+          )}
+          {importLog.length > 0 && (
+            <div className="tw-rounded-lg tw-bg-muted tw-p-3 tw-space-y-1 tw-max-h-44 tw-overflow-y-auto">
+              {importLog.map((line, i) => (
+                <p key={i} className={`tw-text-xs tw-font-mono tw-leading-relaxed ${line.startsWith("───") ? "tw-text-muted-foreground" : "tw-text-foreground"}`}>
+                  {line}
+                </p>
+              ))}
+              {aiStatus && (
+                <div className="tw-flex tw-items-center tw-gap-1.5 tw-pt-0.5">
+                  <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
+                  <p className="tw-text-xs tw-font-mono tw-text-muted-foreground">{aiStatus}</p>
                 </div>
+              )}
+              {isScanning && !aiStatus && (
+                <div className="tw-flex tw-items-center tw-gap-1.5 tw-pt-0.5">
+                  <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
+                </div>
+              )}
+              <div ref={logEndRef} />
+            </div>
+          )}
 
-                {/* Per-page quality rating */}
-                {!ratingSubmitted && pageRatings.length > 0 && (
-                  <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-                    <p className="tw-text-xs tw-font-medium tw-text-foreground">How well did the AI capture each page? (helps us improve)</p>
-                    {pageRatings.map((item) => (
-                      <div key={item.slug} className="tw-flex tw-items-center tw-justify-between">
-                        <span className="tw-text-xs tw-text-muted-foreground">{item.label}</span>
-                        <div className="tw-flex tw-gap-0.5">
-                          {[1,2,3,4,5].map(star => (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={() => setPageRatings(prev => prev.map(p => p.slug === item.slug ? { ...p, rating: star } : p))}
-                              className={`tw-text-lg tw-leading-none tw-transition-colors ${(item.rating ?? 0) >= star ? "tw-text-yellow-400" : "tw-text-muted-foreground/30 hover:tw-text-yellow-300"}`}
-                            >★</button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="tw-flex tw-gap-2 tw-pt-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        type="button"
-                        onClick={() => {
-                          setRatingSubmitted(true);
-                          if (pendingSiteId) { handleClose(false); navigate(`/sites/${pendingSiteId}`); }
-                        }}
-                      >
-                        Skip
-                      </Button>
-                      <Button
-                        size="sm"
-                        type="button"
-                        disabled={pageRatings.every(p => p.rating === null)}
-                        onClick={async () => {
-                          if (!pendingSiteId) return;
-                          await Promise.allSettled(
-                            pageRatings
-                              .filter(p => p.rating !== null)
-                              .map(p => postQualitySignal(pendingSiteId, {
-                                ai_call_id: p.aiCallId,
-                                page_slug: p.slug,
-                                action: "rated",
-                                rating: p.rating!,
-                              }))
-                          );
-                          setRatingSubmitted(true);
-                          handleClose(false);
-                          navigate(`/sites/${pendingSiteId}`);
-                        }}
-                      >
-                        Submit rating
-                      </Button>
+          {/* ── Error ── */}
+          {importError && (
+            <p className="tw-text-sm tw-text-error">{importError}</p>
+          )}
+
+          {/* ── Import success + rating ── */}
+          {importSummary && (
+            <div className="tw-space-y-3">
+              <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
+                <div className="tw-flex tw-items-center tw-gap-2">
+                  <CheckCircle2 className="tw-h-4 tw-w-4 tw-text-success tw-shrink-0" />
+                  <p className="tw-text-sm tw-font-medium">
+                    Imported {importSummary.pages_generated} pages · {importSummary.blocks_generated} blocks
+                  </p>
+                </div>
+                {importSummary.gaps.length > 0 && (
+                  <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1">
+                    <div className="tw-flex tw-items-center tw-gap-1.5">
+                      <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning tw-shrink-0" />
+                      <p className="tw-text-xs tw-font-medium tw-text-warning">
+                        {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} couldn&apos;t be fully mapped
+                      </p>
                     </div>
+                    <ul className="tw-space-y-0.5">
+                      {importSummary.gaps.map((gap, i) => (
+                        <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
-
-                {(ratingSubmitted || pageRatings.length === 0) && (
-                  <Button
-                    size="sm"
-                    type="button"
-                    onClick={() => { handleClose(false); if (pendingSiteId) navigate(`/sites/${pendingSiteId}`); }}
-                  >
-                    Open site editor
-                  </Button>
-                )}
               </div>
-            )}
 
-            {!importSummary && (
-              <div className="tw-flex tw-items-center tw-justify-between tw-pt-1">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(1)} disabled={isPending}>
+              {!ratingSubmitted && pageRatings.length > 0 && (
+                <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
+                  <p className="tw-text-xs tw-font-medium tw-text-foreground">How well did the AI capture each page? (helps us improve)</p>
+                  {pageRatings.map((item) => (
+                    <div key={item.slug} className="tw-flex tw-items-center tw-justify-between">
+                      <span className="tw-text-xs tw-text-muted-foreground">{item.label}</span>
+                      <div className="tw-flex tw-gap-0.5">
+                        {[1,2,3,4,5].map(star => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setPageRatings(prev => prev.map(p => p.slug === item.slug ? { ...p, rating: star } : p))}
+                            className={`tw-text-lg tw-leading-none tw-transition-colors ${(item.rating ?? 0) >= star ? "tw-text-yellow-400" : "tw-text-muted-foreground/30 hover:tw-text-yellow-300"}`}
+                          >★</button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="tw-flex tw-gap-2 tw-pt-1">
+                    <Button size="sm" variant="outline" type="button"
+                      onClick={() => { setRatingSubmitted(true); if (pendingSiteId) { handleClose(false); navigate(`/sites/${pendingSiteId}`); } }}
+                    >
+                      Skip
+                    </Button>
+                    <Button size="sm" type="button"
+                      disabled={pageRatings.every(p => p.rating === null)}
+                      onClick={async () => {
+                        if (!pendingSiteId) return;
+                        await Promise.allSettled(
+                          pageRatings.filter(p => p.rating !== null).map(p =>
+                            postQualitySignal(pendingSiteId, { ai_call_id: p.aiCallId, page_slug: p.slug, action: "rated", rating: p.rating! })
+                          )
+                        );
+                        setRatingSubmitted(true);
+                        handleClose(false);
+                        navigate(`/sites/${pendingSiteId}`);
+                      }}
+                    >
+                      Submit rating
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {(ratingSubmitted || pageRatings.length === 0) && (
+                <Button size="sm" type="button"
+                  onClick={() => { handleClose(false); if (pendingSiteId) navigate(`/sites/${pendingSiteId}`); }}
+                >
+                  Open site editor
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* ── Footer ── */}
+          {!importSummary && (
+            <div className="tw-flex tw-items-center tw-justify-between tw-pt-1">
+              {mode === "generate" ? (
+                <Button type="button" variant="ghost" size="sm" disabled={isPending}
+                  onClick={() => { setMode("import"); setGenName(""); setGenPrompt(""); }}
+                >
                   Back
                 </Button>
-                <Button
-                  disabled={!canSubmit || isPending}
-                  isSubmitting={isPending}
-                  onClick={() => createMutation.mutate()}
-                >
-                  {mode === "import" ? "Create & import" : "Create site"}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+              ) : (
+                <div />
+              )}
+              <Button
+                disabled={!canSubmit || isPending}
+                isSubmitting={isPending}
+                onClick={() => createMutation.mutate()}
+              >
+                {mode === "import" ? "Create & import" : "Generate site"}
+              </Button>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

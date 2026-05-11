@@ -23,6 +23,8 @@ const gmbProfileSchema = z.object({
   country: z.string().max(10).nullable().optional(),
   website_url: z.string().max(500).nullable().optional(),
   hours: z.string().max(1000).nullable().optional(),
+  gmb_rating: z.number().min(1).max(5).nullable().optional(),
+  gmb_review_count: z.number().int().min(0).nullable().optional(),
 });
 
 const bodySchema = z.object({
@@ -418,6 +420,8 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           country: p.country ?? "US",
           website_url: p.website_url ?? null,
           hours: p.hours ?? null,
+          gmb_rating: p.gmb_rating ?? null,
+          gmb_review_count: p.gmb_review_count ?? null,
         };
         const existing = await db
           .selectFrom("business_profiles")

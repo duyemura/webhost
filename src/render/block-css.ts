@@ -845,7 +845,7 @@ export const BLOCK_CSS = `
 .block-marquee__track {
   display: flex;
   width: max-content;
-  animation: di-marquee var(--marquee-duration, 60s) linear infinite;
+  animation: di-marquee var(--marquee-duration, 50s) linear infinite;
 }
 .block-marquee__item {
   display: inline-flex;

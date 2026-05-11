@@ -9,7 +9,8 @@ interface MarqueeFields {
 
 export function render(section: Record<string, unknown>, _theme: Theme, _profile: BusinessProfile | null): string {
   const s = section as unknown as MarqueeFields;
-  const duration = s.speed ?? 28;
+  // Scale with item count so speed stays consistent regardless of how many items there are
+  const duration = s.speed ?? Math.max(40, s.items.length * 5);
   // Duplicate items so the seamless loop works
   const doubled = [...s.items, ...s.items];
 

@@ -1,6 +1,7 @@
 import type { BusinessProfile } from "../db/types.js";
 import type { SiteSpec } from "../blocks/types.js";
 import { esc } from "./escape.js";
+import { interpolate } from "./interpolate.js";
 
 const LEGAL_SLUG_RE = /^(privacy|terms|cancellation|cookie|sitemap|legal|disclaimer|accessibility|refund|gdpr)/i;
 const LEGAL_LABEL_RE = /^(privacy|terms|cancellation|cookie|sitemap|legal|disclaimer|accessibility|refund)/i;
@@ -22,21 +23,34 @@ export function buildFooter(spec: SiteSpec, profile: BusinessProfile | null, log
   const legalPages = allPages.filter(p => isLegalPage(p));
   const navPages = allPages.filter(p => !isLegalPage(p));
 
-  // Group nav pages by nav_group
-  const groupMap = new Map<string, typeof navPages>();
+  // Group nav pages by nav_group — normalize key to lowercase for dedup,
+  // but preserve the first-seen display heading
+  const groupKeys = new Map<string, string>(); // lc → original heading
+  const groupMap = new Map<string, typeof navPages>(); // lc → pages
+  const seenSlugs = new Set<string>();
   const ungrouped: typeof navPages = [];
+
   for (const p of navPages) {
+    if (seenSlugs.has(p.slug)) continue;
+    seenSlugs.add(p.slug);
+
     if (p.nav_group) {
-      if (!groupMap.has(p.nav_group)) groupMap.set(p.nav_group, []);
-      groupMap.get(p.nav_group)!.push(p);
+      const lc = p.nav_group.toLowerCase().trim();
+      if (!groupKeys.has(lc)) groupKeys.set(lc, p.nav_group);
+      if (!groupMap.has(lc)) groupMap.set(lc, []);
+      groupMap.get(lc)!.push(p);
     } else {
       ungrouped.push(p);
     }
   }
 
+  function pageLabel(p: { nav_label?: string; title?: string }): string {
+    return interpolate(p.nav_label || p.title || "", profile);
+  }
+
   function linkCol(heading: string, pages: typeof navPages): string {
     if (pages.length === 0) return "";
-    const links = pages.map(p => `<li><a href="/${esc(p.slug)}">${esc(p.nav_label || p.title)}</a></li>`).join("\n          ");
+    const links = pages.map(p => `<li><a href="/${esc(p.slug)}">${esc(pageLabel(p))}</a></li>`).join("\n          ");
     return `<div class="site-footer__col">
       <h4 class="site-footer__col-heading">${esc(heading)}</h4>
       <ul class="site-footer__links">
@@ -45,12 +59,24 @@ export function buildFooter(spec: SiteSpec, profile: BusinessProfile | null, log
     </div>`;
   }
 
-  // Build columns: one per nav_group, then ungrouped → "About", then legal → "Legal"
+  // Build columns: one per nav_group, then ungrouped (only if no "about" group already), then legal → "Legal"
   const cols: string[] = [];
-  for (const [group, pages] of groupMap) {
-    cols.push(linkCol(group, pages));
+  for (const [lc, pages] of groupMap) {
+    cols.push(linkCol(groupKeys.get(lc)!, pages));
   }
-  if (ungrouped.length > 0) cols.push(linkCol("About", ungrouped));
+
+  // Only render ungrouped as "About" if no group already occupies that name
+  if (ungrouped.length > 0 && !groupMap.has("about")) {
+    cols.push(linkCol("About", ungrouped));
+  } else if (ungrouped.length > 0) {
+    // Append ungrouped pages to the existing "about" column
+    const aboutPages = groupMap.get("about")!;
+    const existing = new Set(aboutPages.map(p => p.slug));
+    for (const p of ungrouped) {
+      if (!existing.has(p.slug)) aboutPages.push(p);
+    }
+  }
+
   if (legalPages.length > 0) cols.push(linkCol("Legal", legalPages));
 
   // Address column — only render if we have something to show

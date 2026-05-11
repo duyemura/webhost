@@ -20,25 +20,31 @@ export function buildNav(
 ): string {
   const pages = spec.pages.filter(p => p.slug !== "index" && !isNavHidden(p));
 
-  // Group nav pages
-  const groupMap = new Map<string, typeof pages>();
+  // Group nav pages — normalize group key to lowercase to deduplicate case variants
+  const groupKeyMap = new Map<string, string>(); // lc → first-seen display heading
+  const groupMap = new Map<string, typeof pages>(); // lc → pages
   for (const p of pages) {
     if (p.nav_group) {
-      if (!groupMap.has(p.nav_group)) groupMap.set(p.nav_group, []);
-      groupMap.get(p.nav_group)!.push(p);
+      const lc = p.nav_group.toLowerCase().trim();
+      if (!groupKeyMap.has(lc)) groupKeyMap.set(lc, p.nav_group);
+      if (!groupMap.has(lc)) groupMap.set(lc, []);
+      groupMap.get(lc)!.push(p);
     }
   }
-  const groupNames = new Set(groupMap.keys());
+  // groupNames used to suppress standalone links whose label duplicates a group name
+  const groupNames = new Set(Array.from(groupKeyMap.values()).map(g => g.toLowerCase()));
 
   const rendered: string[] = [];
-  const renderedGroups = new Set<string>();
+  const renderedGroups = new Set<string>(); // tracks lowercase keys already rendered
 
   for (const p of pages) {
     if (p.nav_group) {
-      if (renderedGroups.has(p.nav_group)) continue;
-      renderedGroups.add(p.nav_group);
+      const lc = p.nav_group.toLowerCase().trim();
+      if (renderedGroups.has(lc)) continue;
+      renderedGroups.add(lc);
 
-      const children = groupMap.get(p.nav_group)!;
+      const heading = groupKeyMap.get(lc)!;
+      const children = groupMap.get(lc)!;
       // Deduplicate children by slug and by normalized label
       const seenSlugs = new Set<string>();
       const seenLabels = new Set<string>();
@@ -58,14 +64,14 @@ export function buildNav(
       }).join("\n          ");
 
       rendered.push(`<li class="site-nav__group${groupActive ? " site-nav__group--active" : ""}">
-        <button class="site-nav__group-trigger" aria-expanded="false">${esc(p.nav_group)}<svg class="site-nav__chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="site-nav__group-trigger" aria-expanded="false">${esc(heading)}<svg class="site-nav__chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <ul class="site-nav__dropdown">
           ${dropdownItems}
         </ul>
       </li>`);
     } else {
       const label = p.nav_label || p.title;
-      if (groupNames.has(label)) continue; // label duplicates a group name — skip
+      if (groupNames.has((label ?? "").toLowerCase())) continue; // label duplicates a group name — skip
 
       const href = `/${p.slug}`;
       const active = requestPath === href || requestPath.startsWith(`/${p.slug}/`);

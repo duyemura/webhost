@@ -34,7 +34,9 @@ export function buildNav(
       ?? spec.pages.find(p => /^contact/.test(p.slug))
       ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p)))
     : null;
-  const ctaSlug = siteCtaUrl ? null : (ctaPage?.slug ?? null);
+  // Derive the slug to exclude from nav links — works for both site-level URL and auto-detected page
+  const ctaUrlSlug = siteCtaUrl ? siteCtaUrl.replace(/^\//, "").split("?")[0] : null;
+  const ctaSlug = ctaUrlSlug ?? ctaPage?.slug ?? null;
 
   const pages = spec.pages.filter(p =>
     p.slug !== "index" &&

@@ -164,12 +164,6 @@ export const BLOCK_CSS = `
   color: var(--color-primary-fg);
 }
 .site-nav__cta-btn:hover { opacity: 0.88; }
-/* Transparent nav (over hero): outlined white so it reads on dark backgrounds */
-:not(.site-nav--scrolled) .site-nav__cta-btn {
-  background: transparent;
-  color: #ffffff;
-  border-color: rgba(255,255,255,0.75);
-}
 @media (max-width: 900px) {
   .site-nav__links { display: none; }
   .site-nav { margin-bottom: -4rem; }

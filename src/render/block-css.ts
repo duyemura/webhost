@@ -79,7 +79,7 @@ export const BLOCK_CSS = `
   padding: 0;
   margin: 0;
 }
-.site-nav__links > li > a,
+.site-nav__links > li > a:not(.site-nav__cta-btn),
 .site-nav__group-trigger {
   display: flex;
   align-items: center;
@@ -101,16 +101,16 @@ export const BLOCK_CSS = `
   white-space: nowrap;
 }
 /* Scrolled nav: switch to site foreground color */
-.site-nav--scrolled .site-nav__links > li > a,
+.site-nav--scrolled .site-nav__links > li > a:not(.site-nav__cta-btn),
 .site-nav--scrolled .site-nav__group-trigger {
   color: var(--color-fg);
   text-shadow: none;
 }
-.site-nav__links > li > a:hover,
+.site-nav__links > li > a:not(.site-nav__cta-btn):hover,
 .site-nav__group:hover .site-nav__group-trigger,
 .site-nav__group:focus-within .site-nav__group-trigger,
 .site-nav__group--active .site-nav__group-trigger,
-.site-nav__links > li > a[aria-current="page"] { opacity: 0.6; }
+.site-nav__links > li > a:not(.site-nav__cta-btn)[aria-current="page"] { opacity: 0.6; }
 /* Dropdown */
 .site-nav__chevron { transition: transform 0.2s; }
 .site-nav__group { position: relative; }

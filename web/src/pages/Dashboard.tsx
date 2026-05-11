@@ -166,6 +166,9 @@ function CreateSiteDialog({
     setPendingSiteId(null);
   }
 
+  // Cleanup substep interval on unmount
+  useEffect(() => () => { if (pageSubstepRef.current) clearInterval(pageSubstepRef.current); }, []);
+
   // Debounced GMB search
   useEffect(() => {
     if (gmbDebounceRef.current) clearTimeout(gmbDebounceRef.current);

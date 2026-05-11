@@ -244,7 +244,7 @@ Brand signals found:
       system: BRAND_SYSTEM_PROMPT,
       messages: msgs,
     });
-    await logAiCall({
+    void logAiCall({
       siteId,
       operation: "brand_kit",
       model,

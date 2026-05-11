@@ -1,23 +1,35 @@
 import { db } from "../db/client.js";
 import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages.js";
 
-// Pricing per million tokens (as of 2025)
 const MODEL_PRICING: Record<string, { input: number; output: number; cache_read: number; cache_write: number }> = {
   "claude-opus-4-7":            { input: 15.00,  output: 75.00,  cache_read: 1.50,  cache_write: 3.75 },
   "claude-sonnet-4-6":          { input: 3.00,   output: 15.00,  cache_read: 0.30,  cache_write: 3.75 },
   "claude-haiku-4-5-20251001":  { input: 0.80,   output: 4.00,   cache_read: 0.08,  cache_write: 1.00 },
 };
 
+const MAX_MESSAGES_BYTES = 100_000;
+
+function cacheTokens(usage: Message["usage"]) {
+  const u = usage as unknown as Record<string, unknown>;
+  return {
+    read: (u["cache_read_input_tokens"] as number | null) ?? 0,
+    write: (u["cache_creation_input_tokens"] as number | null) ?? 0,
+  };
+}
+
 function calcCost(model: string, usage: Message["usage"]): number {
-  const p = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-6"]!;
-  const cacheRead = ("cache_read_input_tokens" in usage ? (usage.cache_read_input_tokens as number) : 0) ?? 0;
-  const cacheWrite = ("cache_creation_input_tokens" in usage ? (usage.cache_creation_input_tokens as number) : 0) ?? 0;
+  const p = MODEL_PRICING[model];
+  if (!p) {
+    console.warn({ model }, "ai-logger: no pricing for model, recording cost_usd=0");
+    return 0;
+  }
+  const { read, write } = cacheTokens(usage);
   return (
-    (usage.input_tokens * p.input +
-     usage.output_tokens * p.output +
-     cacheRead * p.cache_read +
-     cacheWrite * p.cache_write) / 1_000_000
-  );
+    usage.input_tokens * p.input +
+    usage.output_tokens * p.output +
+    read * p.cache_read +
+    write * p.cache_write
+  ) / 1_000_000;
 }
 
 function extractResponseText(msg: Message): string {
@@ -39,12 +51,16 @@ export interface LogAiCallOptions {
   durationMs: number;
 }
 
-/** Fire-and-forget — never throws. */
+/** Fire-and-forget — never throws. Returns the inserted row id (or null on failure). */
 export async function logAiCall(opts: LogAiCallOptions): Promise<string | null> {
   try {
     const usage = opts.response.usage;
-    const cacheRead = ("cache_read_input_tokens" in usage ? (usage.cache_read_input_tokens as number) : 0) ?? 0;
-    const cacheWrite = ("cache_creation_input_tokens" in usage ? (usage.cache_creation_input_tokens as number) : 0) ?? 0;
+    const { read: cacheRead, write: cacheWrite } = cacheTokens(usage);
+
+    const messagesJson = JSON.stringify(opts.messages);
+    const messagesStored = messagesJson.length > MAX_MESSAGES_BYTES
+      ? JSON.stringify([{ role: "truncated", content: `[${messagesJson.length} bytes — truncated]` }])
+      : messagesJson;
 
     const row = await db
       .insertInto("ai_calls")
@@ -59,7 +75,7 @@ export async function logAiCall(opts: LogAiCallOptions): Promise<string | null> 
         cost_usd: calcCost(opts.model, usage),
         max_tokens: opts.maxTokens ?? null,
         system_prompt: opts.systemPrompt?.slice(0, 10_000) ?? null,
-        messages: JSON.stringify(opts.messages),
+        messages: messagesStored,
         response_text: extractResponseText(opts.response),
         duration_ms: opts.durationMs,
       })

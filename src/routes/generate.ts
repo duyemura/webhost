@@ -154,7 +154,7 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
         messages: msgs,
       }, { timeout: 120_000 });
 
-      await logAiCall({
+      void logAiCall({
         siteId: id,
         operation: "generate_site",
         model,

@@ -327,15 +327,9 @@ export const BLOCK_CSS = `
 .block-features { background: var(--color-bg); }
 .block-features__item { display: flex; flex-direction: column; gap: 0.75rem; }
 .block-features__icon {
-  width: 3rem;
-  height: 3rem;
-  background: var(--color-primary);
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-primary-fg);
-  font-size: 1.5rem;
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
 }
 .block-features__item h3 { font-size: 1.125rem; }
 .block-features__item p { color: var(--color-muted-fg); font-size: 0.9375rem; }

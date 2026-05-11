@@ -41,7 +41,7 @@ const ICON_MAP: Record<string, string> = {
 
 function resolveIcon(icon: string): string {
   if ([...icon].length <= 2 || /[^\x00-\x7F]/.test(icon)) return icon;
-  return ICON_MAP[icon.toLowerCase()] ?? icon[0]?.toUpperCase() ?? icon;
+  return ICON_MAP[icon.toLowerCase()] ?? "";
 }
 
 export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
@@ -61,7 +61,7 @@ function renderDefault(section: Record<string, unknown>, profile: BusinessProfil
     </div>` : ""}
     <div class="grid-${cols}">
       ${s.items.map(item => `<div class="block-features__item">
-        ${item.icon ? `<div class="block-features__icon">${esc(resolveIcon(item.icon))}</div>` : ""}
+        ${item.icon && resolveIcon(item.icon) ? `<div class="block-features__icon">${esc(resolveIcon(item.icon))}</div>` : ""}
         <h3>${esc(interpolate(item.title, profile))}</h3>
         <p>${esc(interpolate(item.description, profile))}</p>
       </div>`).join("\n")}

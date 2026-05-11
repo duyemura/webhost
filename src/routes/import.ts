@@ -63,7 +63,8 @@ Guidelines:
   2. Gallery: populate every images[] entry with a downloaded URL. If no downloaded images exist for this page, omit the gallery block.
   3. Programs/Team/About: assign downloaded images to items using alt text or section hint for matching. Distribute images across items when multiple exist.
   4. NEVER invent image URLs. Only use URLs from the Downloaded images list, or leave the field empty.
-  5. A section marked [source: css background] is typically a hero or banner — use its URL in the hero background field.`;
+  5. A section marked [source: css background] is typically a hero or banner — use its URL in the hero background field.
+- Marquee blocks: items must be short punchy quote snippets extracted from real customer reviews — just the memorable phrase, no stars, no attribution, no quotation marks. E.g. "Came in nervous, left obsessed" or "Best decision I ever made". Pull from the Top reviews in the business facts section. Never use program/service names as marquee items.`;
 
 export interface DownloadedImage {
   assetUrl: string;

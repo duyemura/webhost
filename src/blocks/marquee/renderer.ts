@@ -11,8 +11,10 @@ export function render(section: Record<string, unknown>, _theme: Theme, _profile
   const s = section as unknown as MarqueeFields;
   // Scale with item count so speed stays consistent regardless of how many items there are
   const duration = s.speed ?? Math.max(40, s.items.length * 5);
+  // Strip leading star ratings (e.g. "★★★★★ ") from legacy items
+  const cleanItems = s.items.map(item => item.replace(/^[★☆✦\s"']+/, "").replace(/[★☆✦\s"']+$/, "").trim());
   // Duplicate items so the seamless loop works
-  const doubled = [...s.items, ...s.items];
+  const doubled = [...cleanItems, ...cleanItems];
 
   return `<div class="block-marquee" style="--marquee-duration:${duration}s">
   <div class="block-marquee__track">

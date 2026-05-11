@@ -49,6 +49,7 @@ Guidelines:
 - Each section needs a unique string "id" field (short descriptive IDs like "hero1", "about1").
 - Write a short meta_description (max 160 chars) that describes the page.
 - In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
+- Nav exclusions: Privacy Policy, Terms of Use, Terms & Conditions, Cancellation Policy, Cookie Policy, Sitemap, and any legal/policy pages must NOT appear in nav. Generate them as pages but they will be linked from the footer only. Blog pages must also be excluded (no CMS exists).
 - Contact pages: always generate a simple contact-form block (type: "contact-form") with fields for name, email, phone (optional), and message. Do not attempt to replicate embedded third-party form widgets.
 - If the page appears to be a blog index or individual blog post, map it as a single rich-text block with a brief placeholder noting the blog will be managed separately.
 - Images: if the user message includes a "Downloaded images" list, those are real asset URLs — USE THEM. Rules:
@@ -177,8 +178,8 @@ function buildPageToolSchema(instructions: import("../lib/block-instructions.js"
     required: ["title", "nav_label", "meta_description", "sections"],
     properties: {
       title: { type: "string", description: "Full SEO page title (no site name suffix). For the home page (slug 'index'), use the business name or a short brand tagline — never the hero headline." },
-      nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words. Strip any city, state, or SEO decorators. 'CrossFit Classes in Denver, CO' → 'CrossFit'. 'About Our Gym in Kansas City' → 'About us'. 'Contact Us Today' → 'Contact'." },
-      nav_group: { type: "string", description: "Optional dropdown group name. Set this to group related pages under a single nav dropdown. Example: all program pages get nav_group 'Programs'. Only set when 2+ pages share a clear category." },
+      nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words. Strip any city, state, or SEO decorators. 'CrossFit Classes in Denver, CO' → 'CrossFit'. 'About Our Gym in Kansas City' → 'About us'. 'Contact Us Today' → 'Contact'. Privacy Policy → omit from nav (footer only). Terms of Use → omit (footer only). Cancellation → omit (footer only). Blog → omit (no CMS)." },
+      nav_group: { type: "string", description: "Optional dropdown group name. Set this to group related pages under a single nav dropdown. Example: all program pages get nav_group 'Programs'. Only set when 2+ pages share a clear category. IMPORTANT: if you assign nav_group 'Coaches' to sub-pages, do NOT also create a standalone 'Coaches' page at the top level — that would duplicate the group. The group dropdown IS the nav entry." },
       meta_description: { type: "string", description: "Max 160 chars" },
       sections: {
         type: "array",

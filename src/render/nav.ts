@@ -1,12 +1,22 @@
 import type { SiteSpec, Theme } from "../blocks/types.js";
 import { esc } from "./escape.js";
 
+// Pages that belong in the footer, not the main nav
+const FOOTER_SLUG_RE = /^(privacy|terms|cancellation|cookie|sitemap|legal|disclaimer|accessibility|refund|gdpr)/i;
+const FOOTER_LABEL_RE = /^(privacy|terms|cancellation|cookie|sitemap|legal|disclaimer|accessibility|refund)/i;
+
+function isFooterPage(p: { slug: string; nav_label?: string; title?: string }): boolean {
+  if (FOOTER_SLUG_RE.test(p.slug)) return true;
+  const label = p.nav_label || p.title || "";
+  return FOOTER_LABEL_RE.test(label.trim());
+}
+
 export function buildNav(spec: SiteSpec, _theme: Theme, siteName: string, requestPath: string): string {
-  const pages = spec.pages.filter(p => p.slug !== "index");
+  // Exclude home and footer-only pages from nav
+  const pages = spec.pages.filter(p => p.slug !== "index" && !isFooterPage(p));
 
-  // Separate grouped pages from top-level pages
+  // Collect nav groups
   const grouped = new Map<string, typeof pages>();
-
   for (const p of pages) {
     if (p.nav_group) {
       if (!grouped.has(p.nav_group)) grouped.set(p.nav_group, []);
@@ -14,8 +24,10 @@ export function buildNav(spec: SiteSpec, _theme: Theme, siteName: string, reques
     }
   }
 
-  // Build link items: top-level pages + dropdown groups, interleaved in original order
-  // Determine rendering order by first appearance of each group
+  // Build nav items in original page order, deduplicating group names.
+  // If a standalone page's nav_label exactly matches a group name, hide it —
+  // the dropdown already represents that group.
+  const groupNames = new Set(grouped.keys());
   const rendered: string[] = [];
   const renderedGroups = new Set<string>();
 
@@ -40,18 +52,24 @@ export function buildNav(spec: SiteSpec, _theme: Theme, siteName: string, reques
         </ul>
       </li>`);
     } else {
+      const label = p.nav_label || p.title;
+      // Skip standalone page if its label duplicates a nav_group name
+      if (groupNames.has(label)) continue;
+
       const href = `/${p.slug}`;
       const active = requestPath === href || requestPath.startsWith(`/${p.slug}/`);
-      const label = p.nav_label || p.title;
       rendered.push(`<li><a href="${esc(href)}"${active ? ' aria-current="page"' : ""}>${esc(label)}</a></li>`);
     }
   }
 
   const hasContact = spec.pages.some(p => p.slug === "contact");
 
+  // Prefer a clean site name: strip common SEO suffixes like "| City Name" or "- Gym in City"
+  const cleanName = siteName.replace(/\s*[-|]\s*(gym|fitness|crossfit|studio|club|center|centre|sport)\b.*/i, "").trim() || siteName;
+
   return `<nav class="site-nav">
   <div class="container site-nav__inner">
-    <a href="/" class="site-nav__logo">${esc(siteName)}</a>
+    <a href="/" class="site-nav__logo">${esc(cleanName)}</a>
     ${rendered.length > 0 ? `<ul class="site-nav__links">
       ${rendered.join("\n")}
       ${hasContact ? `<li class="site-nav__cta"><a href="/contact" class="btn-primary">Contact us</a></li>` : ""}

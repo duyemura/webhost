@@ -64,14 +64,19 @@ export const BLOCK_CSS = `
   gap: 0.375rem;
   font-size: 0.9375rem;
   color: var(--color-fg);
-  cursor: default;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
   user-select: none;
   transition: color 0.15s;
 }
 .site-nav__group:hover .site-nav__group-trigger,
+.site-nav__group:focus-within .site-nav__group-trigger,
 .site-nav__group--active .site-nav__group-trigger { color: var(--color-primary); }
 .site-nav__chevron { transition: transform 0.15s; }
-.site-nav__group:hover .site-nav__chevron { transform: rotate(180deg); }
+.site-nav__group:hover .site-nav__chevron,
+.site-nav__group:focus-within .site-nav__chevron { transform: rotate(180deg); }
 .site-nav__dropdown {
   display: none;
   position: absolute;
@@ -88,7 +93,8 @@ export const BLOCK_CSS = `
   z-index: 200;
   white-space: nowrap;
 }
-.site-nav__group:hover .site-nav__dropdown { display: block; }
+.site-nav__group:hover .site-nav__dropdown,
+.site-nav__group:focus-within .site-nav__dropdown { display: block; }
 .site-nav__dropdown li a {
   display: block;
   padding: 0.5rem 1rem;

@@ -92,11 +92,11 @@ function buildPageUserMessage(page: ScrapedPage, siteName: string, images: Downl
   return lines.join("\n");
 }
 
-async function buildPageToolSchema(): Promise<object> {
+function buildPageToolSchema(instructions: import("../lib/block-instructions.js").FetchedInstructions): object {
   const sectionTypes = registry.getTypes();
-  const rawSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
+  const rawSchemas = registry.toAISchema();
 
-  const { global: globalInstructions, byBlock } = await fetchInstructions();
+  const { global: globalInstructions, byBlock } = instructions;
 
   const sectionDescriptions = sectionTypes
     .map(type => {
@@ -168,8 +168,8 @@ interface PageResult {
   aiCallId: string | null;
 }
 
-async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], siteId?: string): Promise<PageResult & { aiCallId: string | null }> {
-  const toolSchema = await buildPageToolSchema();
+async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, siteId?: string): Promise<PageResult & { aiCallId: string | null }> {
+  const toolSchema = buildPageToolSchema(instructions);
   const userMessage = buildPageUserMessage(page, siteName, images);
   const model = "claude-opus-4-7";
   const maxTokens = 4000;
@@ -274,7 +274,8 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         primary: brandKit.primary,
         heading_font: brandKit.heading_font,
       });
-    } catch {
+    } catch (err) {
+      req.log.error({ err }, "brand extraction failed — continuing with default theme");
       brandKit = null;
       sseWrite(reply, "brand_done", { logo: false, primary: null, heading_font: null });
     }
@@ -326,6 +327,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     sseWrite(reply, "images_done", { count: downloadedImages.length, failed: totalImageTasks - downloadedImages.length });
 
     // 4. Build each page individually so we can emit per-page progress
+    const instructions = await fetchInstructions();
     sseWrite(reply, "ai_start", { pages: scrape.pages.length });
 
     const pageResults: PageResult[] = [];
@@ -347,7 +349,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
         let result: PageResult;
         try {
-          result = await processPage(page, slug, scrape.site_name, downloadedImages, id);
+          result = await processPage(page, slug, scrape.site_name, downloadedImages, instructions, id);
         } finally {
           clearInterval(heartbeat);
         }

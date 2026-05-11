@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import { registry } from "../blocks/index.js";
+import { config } from "../config.js";
 
 const signalBodySchema = z.object({
   ai_call_id: z.string().uuid().nullable().optional(),
@@ -10,6 +11,17 @@ const signalBodySchema = z.object({
   rating: z.number().int().min(1).max(5).nullable().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
+
+async function requireAdmin(req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) {
+  const user = await db
+    .selectFrom("users")
+    .select("email")
+    .where("id", "=", req.user.sub)
+    .executeTakeFirst();
+  if (!user || !config.adminEmails.has(user.email)) {
+    return reply.forbidden("Admin access required.");
+  }
+}
 
 export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("onRequest", app.authenticate);
@@ -50,7 +62,6 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /api/ai-analytics — aggregate stats for the current user's sites
   app.get("/api/ai-analytics", async (req, reply) => {
-    // Per-operation summary
     const bySite = await db
       .selectFrom("ai_calls")
       .innerJoin("sites", "sites.id", "ai_calls.site_id")
@@ -70,7 +81,6 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
       .orderBy("total_cost_usd", "desc")
       .execute();
 
-    // Quality signal summary
     const signals = await db
       .selectFrom("site_quality_signals")
       .innerJoin("sites", "sites.id", "site_quality_signals.site_id")
@@ -114,7 +124,7 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
     return calls;
   });
 
-  // ── Block instruction store (system-level — admin only for now) ──────────────
+  // ── Block instruction store — admin only ─────────────────────────────────────
 
   const instructionBodySchema = z.object({
     block_type: z.string().nullable().optional(),
@@ -124,7 +134,7 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // GET /api/block-instructions — list all instructions + available block types
-  app.get("/api/block-instructions", async (_req, reply) => {
+  app.get("/api/block-instructions", { preHandler: requireAdmin }, async (_req, reply) => {
     const [instructions, blockTypes] = await Promise.all([
       db.selectFrom("block_instructions")
         .selectAll()
@@ -138,9 +148,14 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // POST /api/block-instructions — add a new instruction
-  app.post("/api/block-instructions", async (req, reply) => {
+  app.post("/api/block-instructions", { preHandler: requireAdmin }, async (req, reply) => {
     const body = instructionBodySchema.safeParse(req.body);
     if (!body.success) return reply.badRequest(body.error.issues.map(i => i.message).join("; "));
+
+    // field_name without block_type is not a valid scope
+    if (body.data.field_name && !body.data.block_type) {
+      return reply.badRequest("field_name requires block_type to be set.");
+    }
 
     const row = await db
       .insertInto("block_instructions")
@@ -156,15 +171,24 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
     return row;
   });
 
-  // PATCH /api/block-instructions/:id — update instruction or toggle active
-  app.patch("/api/block-instructions/:instrId", async (req, reply) => {
+  // PATCH /api/block-instructions/:instrId — update instruction or toggle active
+  app.patch("/api/block-instructions/:instrId", { preHandler: requireAdmin }, async (req, reply) => {
     const { instrId } = req.params as { instrId: string };
     const body = instructionBodySchema.partial().safeParse(req.body);
     if (!body.success) return reply.badRequest(body.error.issues.map(i => i.message).join("; "));
 
+    // Strip undefined AND null to prevent accidentally nulling out scope fields
+    const updateFields = Object.fromEntries(
+      Object.entries(body.data).filter(([, v]) => v !== undefined && v !== null)
+    ) as Partial<typeof body.data>;
+
+    if (Object.keys(updateFields).length === 0) {
+      return reply.badRequest("No fields to update.");
+    }
+
     const row = await db
       .updateTable("block_instructions")
-      .set({ ...body.data, updated_at: new Date() })
+      .set({ ...updateFields, updated_at: new Date() })
       .where("id", "=", instrId)
       .returningAll()
       .executeTakeFirst();
@@ -173,10 +197,16 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
     return row;
   });
 
-  // DELETE /api/block-instructions/:id
-  app.delete("/api/block-instructions/:instrId", async (req, reply) => {
+  // DELETE /api/block-instructions/:instrId
+  app.delete("/api/block-instructions/:instrId", { preHandler: requireAdmin }, async (req, reply) => {
     const { instrId } = req.params as { instrId: string };
-    await db.deleteFrom("block_instructions").where("id", "=", instrId).execute();
+    const deleted = await db
+      .deleteFrom("block_instructions")
+      .where("id", "=", instrId)
+      .returning("id")
+      .executeTakeFirst();
+
+    if (!deleted) return reply.notFound();
     return reply.code(204).send();
   });
 };

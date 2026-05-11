@@ -52,7 +52,7 @@ export interface BlockDefinition {
   type: string;
   schema: z.ZodTypeAny;
   render: (section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null) => string;
-  aiSchema: object;
+  aiSchema: { type: string; fields: Record<string, string> };
   /** Writing/content rules injected into the AI prompt for this block type. */
   copyGuidelines?: string;
 }

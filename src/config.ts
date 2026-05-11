@@ -34,6 +34,9 @@ export const config = {
   },
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? "",
+  adminEmails: new Set(
+    (process.env.ADMIN_EMAILS ?? "").split(",").map(e => e.trim()).filter(Boolean)
+  ),
   db: dbFromUrl ?? {
     host: process.env.DB_HOST ?? "localhost",
     port: Number(process.env.DB_PORT ?? 5432),

@@ -145,7 +145,8 @@ const sql = `
     instruction TEXT NOT NULL,
     active      BOOLEAN NOT NULL DEFAULT true,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT field_name_requires_block_type CHECK (field_name IS NULL OR block_type IS NOT NULL)
   );
   CREATE INDEX IF NOT EXISTS block_instructions_block_type_idx ON block_instructions(block_type) WHERE active = true;
 `;

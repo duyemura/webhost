@@ -6,14 +6,11 @@ export function buildNav(spec: SiteSpec, _theme: Theme, siteName: string, reques
 
   // Separate grouped pages from top-level pages
   const grouped = new Map<string, typeof pages>();
-  const topLevel: typeof pages = [];
 
   for (const p of pages) {
     if (p.nav_group) {
       if (!grouped.has(p.nav_group)) grouped.set(p.nav_group, []);
       grouped.get(p.nav_group)!.push(p);
-    } else {
-      topLevel.push(p);
     }
   }
 
@@ -37,7 +34,7 @@ export function buildNav(spec: SiteSpec, _theme: Theme, siteName: string, reques
       }).join("\n");
 
       rendered.push(`<li class="site-nav__group${groupActive ? " site-nav__group--active" : ""}">
-        <span class="site-nav__group-trigger">${esc(p.nav_group)}<svg class="site-nav__chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <button class="site-nav__group-trigger" aria-expanded="false">${esc(p.nav_group)}<svg class="site-nav__chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <ul class="site-nav__dropdown">
           ${dropdownItems}
         </ul>

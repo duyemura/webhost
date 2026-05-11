@@ -54,7 +54,7 @@ function buildUserMessage(prompt: string, profile: BusinessProfile | null): stri
 
 async function buildInputSchema(): Promise<object> {
   const sectionTypes = registry.getTypes();
-  const rawSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
+  const rawSchemas = registry.toAISchema();
 
   const { global: globalInstructions, byBlock } = await fetchInstructions();
 

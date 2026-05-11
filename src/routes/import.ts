@@ -234,7 +234,9 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
   const toolSchema = buildPageToolSchema(instructions);
   const userMessage = buildPageUserMessage(page, siteName, images, gmb, brand);
   const model = "claude-sonnet-4-6";
-  const maxTokens = 4000;
+  // Home page (index) can have many scraped sections → needs more output budget.
+  // Inner pages are typically smaller; 6000 is a comfortable ceiling for both.
+  const maxTokens = 8000;
   const msgs = [{ role: "user" as const, content: userMessage }];
 
   const t0 = Date.now();
@@ -249,7 +251,7 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
     tool_choice: { type: "tool", name: "create_page_spec" },
     system: PAGE_SYSTEM_PROMPT,
     messages: msgs,
-  }, { timeout: 90_000 });
+  }, { timeout: 120_000 });
   const durationMs = Date.now() - t0;
 
   const costEventId = await logAiCall({
@@ -263,6 +265,12 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
     durationMs,
   });
 
+  // If max_tokens was hit the SDK returns input:{} — surface this as a hard error
+  // so we never silently store a page with 0 sections.
+  if (msg.stop_reason === "max_tokens") {
+    throw new Error(`Response cut off by token limit for page "${page.title || slug}" — try a page with fewer sections`);
+  }
+
   const toolUse = msg.content.find(c => c.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
     throw new Error(`AI did not return a spec for page "${page.title || slug}"`);
@@ -271,6 +279,11 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
   const input = toolUse.input as Record<string, unknown>;
   const gaps = Array.isArray(input._gaps) ? (input._gaps as string[]) : [];
   const sections = Array.isArray(input.sections) ? input.sections : [];
+
+  // Guard: if the AI returned no sections for a page with real content, something went wrong
+  if (sections.length === 0 && page.sections.length >= 3) {
+    throw new Error(`AI returned 0 sections for "${page.title || slug}" which had ${page.sections.length} scraped sections — the response may have been malformed`);
+  }
 
   return {
     slug,

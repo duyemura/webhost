@@ -191,8 +191,9 @@ export const BLOCK_CSS = `
   flex: 0 0 220px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.4rem;
 }
+.site-footer__brand .site-footer__logo { margin-bottom: 0.6rem; }
 .site-footer__logo { display: inline-block; text-decoration: none; }
 .site-footer__logo-img { max-height: 64px; width: auto; opacity: 0.9; }
 .site-footer__logo-text {
@@ -203,7 +204,10 @@ export const BLOCK_CSS = `
   letter-spacing: 0.02em;
   text-transform: var(--heading-transform);
 }
-.site-footer__hours { font-size: 0.8125rem; color: var(--color-footer-fg); line-height: 1.6; }
+.site-footer__hours { font-size: 0.8125rem; color: var(--color-footer-fg); line-height: 1.6; margin: 0; }
+.site-footer__address-line { font-size: 0.875rem; color: var(--color-footer-fg); line-height: 1.6; margin: 0; }
+.site-footer__address-line a { color: var(--color-footer-fg); text-decoration: none; transition: color 0.15s; }
+.site-footer__address-line a:hover { color: var(--color-footer-heading); }
 .site-footer__cols {
   flex: 1;
   display: flex;

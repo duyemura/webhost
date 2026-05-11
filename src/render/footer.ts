@@ -79,30 +79,26 @@ export function buildFooter(spec: SiteSpec, profile: BusinessProfile | null, log
 
   if (legalPages.length > 0) cols.push(linkCol("Legal", legalPages));
 
-  // Address column — only render if we have something to show
-  const hasAddress = addressParts.length > 0 || cityStateZip || profile?.phone;
-  if (hasAddress) {
-    const lines: string[] = [];
-    if (addressParts.length > 0) lines.push(`<p>${esc(addressParts.join(", "))}</p>`);
-    if (cityStateZip) lines.push(`<p>${esc(cityStateZip)}</p>`);
-    if (profile?.phone) lines.push(`<p><a href="tel:${esc(profile.phone)}">${esc(profile.phone)}</a></p>`);
-    if (profile?.email) lines.push(`<p><a href="mailto:${esc(profile.email)}">${esc(profile.email)}</a></p>`);
-    cols.push(`<div class="site-footer__col">
-      <h4 class="site-footer__col-heading">Contact</h4>
-      <div class="site-footer__address">${lines.join("\n      ")}</div>
-    </div>`);
-  }
-
   const logoHtml = logoUrl
     ? `<img src="${esc(logoUrl)}" alt="${esc(name)}" class="site-footer__logo-img" />`
     : `<span class="site-footer__logo-text">${esc(name)}</span>`;
+
+  // Brand column: logo, name, address, phone, email, hours — all in one left column
+  const brandLines: string[] = [];
+  if (addressParts.length > 0 || cityStateZip) {
+    const addr = [addressParts.join(", "), cityStateZip].filter(Boolean).join(", ");
+    brandLines.push(`<p class="site-footer__address-line">${esc(addr)}</p>`);
+  }
+  if (profile?.phone) brandLines.push(`<p class="site-footer__address-line"><a href="tel:${esc(profile.phone)}">${esc(profile.phone)}</a></p>`);
+  if (profile?.email) brandLines.push(`<p class="site-footer__address-line"><a href="mailto:${esc(profile.email)}">${esc(profile.email)}</a></p>`);
+  if (profile?.hours) brandLines.push(`<p class="site-footer__hours">${esc(profile.hours.split("\n")[0] ?? "")}</p>`);
 
   return `<footer class="site-footer">
   <div class="container">
     <div class="site-footer__body">
       <div class="site-footer__brand">
         <a href="/" class="site-footer__logo">${logoHtml}</a>
-        ${profile?.hours ? `<p class="site-footer__hours">${esc(profile.hours.split("\n")[0] ?? "")}</p>` : ""}
+        ${brandLines.join("\n        ")}
       </div>
       <div class="site-footer__cols">
         ${cols.join("\n        ")}

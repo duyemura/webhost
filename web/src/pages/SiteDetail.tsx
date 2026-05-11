@@ -15,6 +15,9 @@ import {
   ArrowLeft,
   Monitor,
   Smartphone,
+  Loader2,
+  CheckCircle2,
+  Wand2,
 } from "lucide-react";
 import {
   Button,
@@ -57,6 +60,7 @@ import {
   THEME_PRESETS,
   THEME_PRESET_SWATCH,
   THEME_PRESET_LABELS,
+  THEME_PRESET_DESCRIPTIONS,
   getTemplates,
   getTemplate,
   getPresets,
@@ -65,6 +69,8 @@ import {
   type BusinessProfile,
   type SiteSpec,
   type Theme,
+  type ImportSummary,
+  type Site,
   DEFAULT_THEME,
   updateSpec,
   updateTheme,
@@ -965,11 +971,353 @@ function UrlBar({ slug, customDomain }: { slug: string; customDomain: string | n
   );
 }
 
+function extractImportUrl(generationPrompt: string | null): string {
+  if (!generationPrompt) return "";
+  const match = generationPrompt.match(/^Imported from (.+)$/);
+  return match ? match[1].trim() : "";
+}
+
+function RebuildDialog({
+  site,
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  site: Site;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [url, setUrl] = useState(() => extractImportUrl(site.generation_prompt));
+  const [theme, setTheme] = useState<ThemePreset>(
+    (THEME_PRESETS.includes(site.theme_preset as ThemePreset) ? site.theme_preset : "bold") as ThemePreset
+  );
+  const [forceCrawl, setForceCrawl] = useState(false);
+
+  const [importPhase, setImportPhase] = useState<"scraping" | "brand" | "building" | null>(null);
+  const [importPhaseLabel, setImportPhaseLabel] = useState<string | null>(null);
+  const [importPages, setImportPages] = useState<{ slug: string; label: string; status: "pending" | "active" | "done"; blocks?: number; substep?: string }[]>([]);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const pageSubstepRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => {
+    if (pageSubstepRef.current) clearInterval(pageSubstepRef.current);
+  }, []);
+
+  function reset() {
+    setUrl(extractImportUrl(site.generation_prompt));
+    setTheme((THEME_PRESETS.includes(site.theme_preset as ThemePreset) ? site.theme_preset : "bold") as ThemePreset);
+    setForceCrawl(false);
+    setImportPhase(null);
+    setImportPhaseLabel(null);
+    setImportPages([]);
+    setImportSummary(null);
+    setImportError(null);
+    setIsImporting(false);
+  }
+
+  function handleClose(open: boolean) {
+    if (!open) {
+      abortRef.current?.abort();
+      reset();
+    }
+    onOpenChange(open);
+  }
+
+  async function runRebuild() {
+    const token = localStorage.getItem("token");
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsImporting(true);
+    setImportError(null);
+    setImportPhase(null);
+    setImportPhaseLabel(null);
+    setImportPages([]);
+    setImportSummary(null);
+
+    const res = await fetch(`/api/sites/${site.id}/import-url`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ url: url.trim(), theme_preset: theme, force_crawl: forceCrawl }),
+    });
+
+    if (controller.signal.aborted) return;
+
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "Unknown error");
+      let message = text;
+      try { message = JSON.parse(text)?.message ?? text; } catch {}
+      setImportError(message);
+      setIsImporting(false);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (!controller.signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+
+      for (const part of parts) {
+        const eventLine = part.match(/^event: (.+)$/m)?.[1];
+        const dataLine = part.match(/^data: (.+)$/m)?.[1];
+        if (!eventLine || !dataLine) continue;
+        try {
+          const data = JSON.parse(dataLine) as Record<string, unknown>;
+          if (eventLine === "scrape_cached") {
+            setImportPhase("scraping");
+            try {
+              const host = new URL(data.url as string).hostname;
+              setImportPhaseLabel(`Using cached crawl — ${host}`);
+            } catch {
+              setImportPhaseLabel(`Using cached crawl (${data.pages as number} pages)`);
+            }
+          } else if (eventLine === "fetching") {
+            setImportPhase("scraping");
+            try { setImportPhaseLabel(`Scanning ${new URL(data.url as string).hostname}…`); } catch { setImportPhaseLabel("Scanning…"); }
+          } else if (eventLine === "discovered") {
+            const urls = data.urls as string[];
+            setImportPhaseLabel(`Found ${urls.length} page${urls.length !== 1 ? "s" : ""} to scan`);
+          } else if (eventLine === "page_done") {
+            setImportPhaseLabel(`Scanned: ${data.title as string}`);
+          } else if (eventLine === "brand_start") {
+            setImportPhase("brand");
+            setImportPhaseLabel("Extracting brand colors and logo…");
+          } else if (eventLine === "brand_done") {
+            const font = data.heading_font as string | null;
+            const logo = data.logo as boolean;
+            const parts2: string[] = [];
+            if (data.primary) parts2.push(`${data.primary as string}`);
+            if (font) parts2.push(font);
+            if (logo) parts2.push("logo");
+            setImportPhaseLabel(`Brand kit${parts2.length ? ` — ${parts2.join(", ")}` : ""}`);
+          } else if (eventLine === "images_start") {
+            setImportPhaseLabel("Downloading images…");
+          } else if (eventLine === "images_done") {
+            setImportPhaseLabel(`${data.count as number} images downloaded`);
+          } else if (eventLine === "ai_start") {
+            setImportPhase("building");
+            setImportPhaseLabel(null);
+            const total = data.pages as number;
+            setImportPages(Array.from({ length: total }, (_, i) => ({ slug: `page-${i}`, label: `Page ${i + 1}`, status: "pending" as const })));
+          } else if (eventLine === "ai_page_start") {
+            const slug = data.slug as string;
+            const label = data.label as string;
+            const index = data.index as number;
+            const total = data.total as number;
+            setImportPages(prev => prev.map((p, i) =>
+              i === index ? { ...p, slug, label, status: "active" as const, substep: "Mapping sections" } : p
+            ));
+            setImportPhaseLabel(`Page ${index + 1} of ${total}`);
+            const substeps = ["Mapping sections", "Writing copy", "Choosing layouts", "Assigning images", "Finalizing"];
+            let substepIdx = 0;
+            if (pageSubstepRef.current) clearInterval(pageSubstepRef.current);
+            pageSubstepRef.current = setInterval(() => {
+              substepIdx = Math.min(substepIdx + 1, substeps.length - 1);
+              setImportPages(prev => prev.map((p, i) =>
+                i === index ? { ...p, substep: substeps[substepIdx] } : p
+              ));
+              if (substepIdx === substeps.length - 1 && pageSubstepRef.current) {
+                clearInterval(pageSubstepRef.current);
+                pageSubstepRef.current = null;
+              }
+            }, 5000);
+          } else if (eventLine === "ai_page_done") {
+            if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
+            const pageSlug = data.slug as string;
+            const pageLabel = data.label as string;
+            const blocks = data.blocks as number;
+            setImportPages(prev => prev.map(p =>
+              p.slug === pageSlug ? { ...p, label: pageLabel, status: "done" as const, blocks, substep: undefined } : p
+            ));
+          } else if (eventLine === "complete") {
+            if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
+            const summary = data.summary as ImportSummary;
+            setImportSummary(summary);
+            setIsImporting(false);
+            queryClient.invalidateQueries({ queryKey: ["sites", site.id] });
+          } else if (eventLine === "error") {
+            if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
+            setImportError(data.message as string);
+            setIsImporting(false);
+            return;
+          }
+        } catch (e) {
+          console.warn("Failed to parse SSE event:", part, e);
+        }
+      }
+    }
+
+    setIsImporting(false);
+  }
+
+  const canSubmit = url.trim().length > 0 && !isImporting;
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="tw-max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Rebuild site</DialogTitle>
+        </DialogHeader>
+
+        <div className="tw-space-y-4">
+          {!isImporting && !importSummary && (
+            <>
+              <div className="tw-space-y-1.5">
+                <Label htmlFor="rebuild-url">Website URL</Label>
+                <Input
+                  id="rebuild-url"
+                  type="url"
+                  placeholder="https://yourgym.com"
+                  value={url}
+                  onChange={(e) => { setUrl(e.target.value); setImportError(null); }}
+                  disabled={isImporting}
+                />
+              </div>
+
+              <div className="tw-space-y-1.5">
+                <Label>Theme</Label>
+                <div className="tw-grid tw-grid-cols-2 tw-gap-2">
+                  {THEME_PRESETS.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={isImporting}
+                      onClick={() => setTheme(preset)}
+                      className={`tw-flex tw-flex-col tw-items-start tw-gap-0.5 tw-px-3 tw-py-2 tw-rounded-lg tw-text-left tw-border tw-transition-all ${
+                        theme === preset
+                          ? "tw-border-foreground tw-bg-foreground tw-text-background"
+                          : "tw-border-border tw-text-foreground hover:tw-border-foreground/50"
+                      }`}
+                    >
+                      <span className="tw-text-xs tw-font-medium">{THEME_PRESET_LABELS[preset]}</span>
+                      <span className={`tw-text-xs ${theme === preset ? "tw-text-background/70" : "tw-text-muted-foreground"}`}>
+                        {THEME_PRESET_DESCRIPTIONS[preset]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="tw-flex tw-items-center tw-gap-2">
+                <Switch
+                  id="force-crawl"
+                  checked={forceCrawl}
+                  onCheckedChange={setForceCrawl}
+                />
+                <Label htmlFor="force-crawl" className="tw-cursor-pointer">
+                  Force re-crawl (bypass 3-day cache)
+                </Label>
+              </div>
+            </>
+          )}
+
+          {/* Progress */}
+          {isImporting && (
+            <div className="tw-rounded-lg tw-border tw-border-border tw-overflow-hidden">
+              <div className="tw-flex tw-items-center tw-gap-2.5 tw-px-3 tw-py-2.5 tw-bg-muted tw-border-b tw-border-border">
+                <Loader2 className="tw-h-3.5 tw-w-3.5 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
+                <p className="tw-text-xs tw-font-medium tw-text-foreground">
+                  {importPhase === "scraping" && "Scanning website"}
+                  {importPhase === "brand" && "Extracting brand"}
+                  {importPhase === "building" && `Building pages${importPhaseLabel ? ` — ${importPhaseLabel}` : ""}`}
+                  {!importPhase && "Starting…"}
+                </p>
+                {importPhaseLabel && importPhase !== "building" && (
+                  <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{importPhaseLabel}</p>
+                )}
+              </div>
+              {importPhase === "building" && importPages.length > 0 && (
+                <div className="tw-divide-y tw-divide-border tw-max-h-52 tw-overflow-y-auto">
+                  {importPages.map((page) => (
+                    <div key={page.slug} className="tw-flex tw-items-center tw-gap-2.5 tw-px-3 tw-py-2">
+                      {page.status === "done" && <CheckCircle2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-success" />}
+                      {page.status === "active" && <Loader2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-animate-spin tw-text-primary" />}
+                      {page.status === "pending" && <div className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-rounded-full tw-border tw-border-border" />}
+                      <div className="tw-min-w-0">
+                        <p className={`tw-text-xs tw-font-medium tw-truncate ${page.status === "pending" ? "tw-text-muted-foreground" : "tw-text-foreground"}`}>
+                          {page.label}
+                        </p>
+                        {page.status === "active" && page.substep && (
+                          <p className="tw-text-xs tw-text-muted-foreground">{page.substep}</p>
+                        )}
+                        {page.status === "done" && page.blocks != null && (
+                          <p className="tw-text-xs tw-text-muted-foreground">{page.blocks} block{page.blocks !== 1 ? "s" : ""}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {importError && (
+            <p className="tw-text-sm tw-text-error">{importError}</p>
+          )}
+
+          {importSummary && (
+            <div className="tw-space-y-2">
+              <p className="tw-text-sm tw-font-semibold tw-text-foreground">Site rebuilt successfully</p>
+              <div className="tw-rounded-lg tw-border tw-border-border tw-divide-y tw-divide-border">
+                <div className="tw-px-3 tw-py-2.5 tw-flex tw-items-center tw-gap-2">
+                  <CheckCircle2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-success" />
+                  <span className="tw-text-sm tw-text-foreground">{importSummary.pages_generated} pages · {importSummary.blocks_generated} blocks</span>
+                </div>
+                {importSummary.logo_found && (
+                  <div className="tw-px-3 tw-py-2.5 tw-flex tw-items-center tw-gap-2">
+                    <CheckCircle2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-success" />
+                    <span className="tw-text-sm tw-text-foreground">Logo, colors & fonts extracted</span>
+                  </div>
+                )}
+              </div>
+              <Button size="sm" className="tw-w-full" onClick={() => { handleClose(false); onSuccess(); }}>
+                View updated site
+              </Button>
+            </div>
+          )}
+
+          {!importSummary && (
+            <div className="tw-flex tw-items-center tw-justify-end tw-gap-2 tw-pt-1">
+              <Button variant="ghost" size="sm" disabled={isImporting} onClick={() => handleClose(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={!canSubmit}
+                isSubmitting={isImporting}
+                onClick={() => void runRebuild()}
+              >
+                Rebuild site
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SiteDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [addScriptOpen, setAddScriptOpen] = useState(false);
+  const [rebuildOpen, setRebuildOpen] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
   const [genPrompt, setGenPrompt] = useState("");
@@ -1051,6 +1399,12 @@ export function SiteDetail() {
         <div className="tw-flex tw-items-center tw-gap-2 tw-shrink-0">
           {publishMutation.isError && (
             <span className="tw-text-xs tw-text-error">Publish failed.</span>
+          )}
+          {!!extractImportUrl(site.generation_prompt) && (
+            <Button variant="outline" size="sm" onClick={() => setRebuildOpen(true)}>
+              <Wand2 className="tw-h-3.5 tw-w-3.5 tw-mr-1.5" />
+              Rebuild
+            </Button>
           )}
           {isPublished && (
             hasUnpublishedChanges ? (
@@ -1337,6 +1691,15 @@ export function SiteDetail() {
         onClose={() => setAddScriptOpen(false)}
         onAdded={refreshPreview}
       />
+
+      {site && (
+        <RebuildDialog
+          site={site}
+          open={rebuildOpen}
+          onOpenChange={setRebuildOpen}
+          onSuccess={refreshPreview}
+        />
+      )}
     </div>
   );
 }

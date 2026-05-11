@@ -36,6 +36,7 @@ const gmbProfileSchema = z.object({
 const bodySchema = z.object({
   url: z.string().url("Must be a valid URL"),
   theme_preset: z.string().optional(),
+  force_crawl: z.boolean().optional(),
   gmb_profile: gmbProfileSchema.optional(),
 });
 
@@ -311,9 +312,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       "X-Accel-Buffering": "no",
     });
 
-    // 1. Scrape — use cache if available (3-day TTL)
+    // 1. Scrape — use cache if available (3-day TTL), unless force_crawl is set
     let scrape: ScrapeResult;
-    const cachedScrape = await getCachedCrawl(body.data.url);
+    const cachedScrape = body.data.force_crawl ? null : await getCachedCrawl(body.data.url);
     if (cachedScrape) {
       scrape = cachedScrape;
       sseWrite(reply, "scrape_cached", { pages: scrape.pages.length, url: body.data.url });

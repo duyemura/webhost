@@ -161,16 +161,15 @@ export interface DomainStatus {
 export const getDomainStatus = (siteId: string) =>
   apiFetch<DomainStatus>(`/sites/${siteId}/domain-status`);
 
-export const THEME_PRESETS = ["bold", "professional", "warm", "dark", "minimal", "energetic"] as const;
+export const THEME_PRESETS = ["bold", "professional", "warm", "dark", "minimal"] as const;
 export type ThemePreset = (typeof THEME_PRESETS)[number];
 
-export const THEME_PRESET_COLORS: Record<ThemePreset, string> = {
-  bold: "#e63946",
-  professional: "#1e40af",
-  warm: "#ea580c",
-  dark: "#111827",
-  minimal: "#6b7280",
-  energetic: "#16a34a",
+export const THEME_PRESET_SWATCH: Record<ThemePreset, string> = {
+  bold: "#111827",
+  professional: "#111827",
+  warm: "#111827",
+  dark: "#111111",
+  minimal: "#111827",
 };
 
 export const THEME_PRESET_LABELS: Record<ThemePreset, string> = {
@@ -179,16 +178,14 @@ export const THEME_PRESET_LABELS: Record<ThemePreset, string> = {
   warm: "Warm",
   dark: "Dark",
   minimal: "Minimal",
-  energetic: "Energetic",
 };
 
 export const THEME_PRESET_DESCRIPTIONS: Record<ThemePreset, string> = {
-  bold: "High contrast, strong type, punchy CTAs",
-  professional: "Clean and corporate, navy, trustworthy",
-  warm: "Earthy oranges, friendly and approachable",
-  dark: "Dark backgrounds, premium modern feel",
-  minimal: "Light and airy, lots of whitespace",
-  energetic: "Bright greens, fitness and health vibes",
+  bold: "Heavy condensed type, uppercase headings, punchy layout",
+  professional: "Serif headings, refined spacing, polished feel",
+  warm: "Rounded corners, soft type, approachable and friendly",
+  dark: "Dark backgrounds, high contrast, premium modern feel",
+  minimal: "Open sans-serif, generous whitespace, clean and airy",
 };
 
 export const generateSite = (siteId: string, body: { prompt: string; theme_preset?: string }) =>

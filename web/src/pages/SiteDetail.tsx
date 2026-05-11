@@ -55,7 +55,7 @@ import {
   saveProfile,
   generateSite,
   THEME_PRESETS,
-  THEME_PRESET_COLORS,
+  THEME_PRESET_SWATCH,
   THEME_PRESET_LABELS,
   getTemplates,
   getTemplate,
@@ -636,6 +636,7 @@ interface AiGenerateSectionProps {
   hasSpec: boolean;
   spec: unknown;
   theme: unknown;
+  themePreset: string | null;
   generationPrompt: string;
   genPrompt: string;
   setGenPrompt: (v: string) => void;
@@ -683,7 +684,7 @@ function GenerateForm({
             >
               <span
                 className="tw-w-3 tw-h-3 tw-rounded-full tw-shrink-0"
-                style={{ background: THEME_PRESET_COLORS[preset] }}
+                style={{ background: THEME_PRESET_SWATCH[preset] }}
               />
               {THEME_PRESET_LABELS[preset]}
             </button>
@@ -721,13 +722,12 @@ function blockSummary(section: Record<string, unknown>): string {
 }
 
 function AiGenerateSection({
-  hasSpec, spec, theme, generationPrompt,
+  hasSpec, spec, themePreset, generationPrompt,
   genPrompt, setGenPrompt, genTheme, setGenTheme,
   genRegenOpen, setGenRegenOpen,
   isPending, error, onGenerate,
 }: AiGenerateSectionProps) {
   const specData = spec as { version: number; pages: { slug: string; title: string; sections: Record<string, unknown>[] }[] } | null;
-  const themeData = theme as { colors?: { primary?: string } } | null;
   const totalBlocks = specData?.pages.reduce((n, p) => n + p.sections.length, 0) ?? 0;
 
   // Prefill prompt from generation_prompt on mount
@@ -757,10 +757,8 @@ function AiGenerateSection({
     );
   }
 
-  // Find preset name from theme primary color
-  const primaryColor = themeData?.colors?.primary;
-  const presetName = primaryColor
-    ? (THEME_PRESETS.find(p => THEME_PRESET_COLORS[p] === primaryColor) ?? null)
+  const presetName = (themePreset && THEME_PRESETS.includes(themePreset as ThemePreset))
+    ? (themePreset as ThemePreset)
     : null;
 
   return (
@@ -796,13 +794,10 @@ function AiGenerateSection({
       </div>
 
       {/* Theme chip */}
-      {primaryColor && (
+      {presetName && (
         <div className="tw-flex tw-items-center tw-gap-2 tw-text-sm">
           <span className="tw-text-muted-foreground">Theme:</span>
-          <span className="tw-flex tw-items-center tw-gap-1.5 tw-font-medium">
-            <span className="tw-w-3 tw-h-3 tw-rounded-full tw-inline-block" style={{ background: primaryColor }} />
-            {presetName ? THEME_PRESET_LABELS[presetName] : "Custom"}
-          </span>
+          <span className="tw-font-medium">{THEME_PRESET_LABELS[presetName]}</span>
         </div>
       )}
 
@@ -1160,6 +1155,7 @@ export function SiteDetail() {
                 hasSpec={!!site.spec}
                 spec={site.spec}
                 theme={site.theme}
+                themePreset={site.theme_preset ?? null}
                 generationPrompt={site.generation_prompt ?? ""}
                 genPrompt={genPrompt}
                 setGenPrompt={setGenPrompt}

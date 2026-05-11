@@ -126,6 +126,7 @@ function CreateSiteDialog({
   const [importPhaseLabel, setImportPhaseLabel] = useState<string | null>(null);
   const [importPages, setImportPages] = useState<{ slug: string; label: string; status: "pending" | "active" | "done"; blocks?: number; substep?: string }[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [showGaps, setShowGaps] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [pageRatings, setPageRatings] = useState<PageRatingItem[]>([]);
@@ -651,18 +652,25 @@ function CreateSiteDialog({
                   </p>
                 </div>
                 {importSummary.gaps.length > 0 && (
-                  <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1">
-                    <div className="tw-flex tw-items-center tw-gap-1.5">
+                  <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1.5">
+                    <button
+                      type="button"
+                      className="tw-flex tw-items-center tw-gap-1.5 tw-w-full tw-text-left"
+                      onClick={() => setShowGaps(v => !v)}
+                    >
                       <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning tw-shrink-0" />
-                      <p className="tw-text-xs tw-font-medium tw-text-warning">
+                      <p className="tw-text-xs tw-font-medium tw-text-warning tw-flex-1">
                         {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} couldn&apos;t be fully mapped
                       </p>
-                    </div>
-                    <ul className="tw-space-y-0.5">
-                      {importSummary.gaps.map((gap, i) => (
-                        <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
-                      ))}
-                    </ul>
+                      <span className="tw-text-xs tw-text-warning/70">{showGaps ? "Hide" : "Show"}</span>
+                    </button>
+                    {showGaps && (
+                      <ul className="tw-space-y-0.5 tw-max-h-40 tw-overflow-y-auto">
+                        {importSummary.gaps.map((gap, i) => (
+                          <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 )}
               </div>

@@ -5,6 +5,7 @@ import { db } from "../db/client.js";
 import { storeAsset } from "./storage.js";
 import { isPublicUrl } from "./scrape.js";
 import type { AllowedMimeType } from "../db/types.js";
+import { logAiCall } from "./ai-logger.js";
 
 export interface BrandKit {
   logo_url: string | null;
@@ -233,11 +234,25 @@ Brand signals found:
   let kit: BrandKit = { ...DEFAULT_BRAND_KIT };
 
   try {
+    const model = "claude-haiku-4-5-20251001";
+    const maxTokens = 500;
+    const msgs = [{ role: "user" as const, content: prompt }];
+    const t0 = Date.now();
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 500,
+      model,
+      max_tokens: maxTokens,
       system: BRAND_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }],
+      messages: msgs,
+    });
+    await logAiCall({
+      siteId,
+      operation: "brand_kit",
+      model,
+      maxTokens,
+      systemPrompt: BRAND_SYSTEM_PROMPT,
+      messages: msgs,
+      response: msg,
+      durationMs: Date.now() - t0,
     });
 
     const text = msg.content.find(c => c.type === "text")?.text ?? "";

@@ -7,6 +7,7 @@ import { registry } from "../blocks/index.js";
 import { THEME_PRESETS } from "../render/theme-presets.js";
 import { DEFAULT_THEME } from "../blocks/types.js";
 import type { BusinessProfile } from "../db/types.js";
+import { logAiCall } from "../lib/ai-logger.js";
 
 const bodySchema = z.object({
   prompt: z.string().min(1).max(2000),
@@ -78,6 +79,7 @@ function buildInputSchema(): object {
             slug: { type: "string", description: "URL slug: 'index', 'contact', 'programs', etc." },
             title: { type: "string", description: "Full SEO page title for <title> tag" },
             nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words. Examples: 'CrossFit', 'Bootcamp', 'Personal training', 'Pricing', 'Contact'" },
+            nav_group: { type: "string", description: "Optional dropdown group name. Set when 2+ pages share a category (e.g. all program pages get nav_group 'Programs'). Omit for standalone pages." },
             meta_description: { type: "string", description: "Meta description for SEO, max 160 chars" },
             sections: {
               type: "array",
@@ -135,9 +137,13 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
 
     let specData: unknown;
     try {
+      const model = "claude-opus-4-7";
+      const maxTokens = 8000;
+      const msgs = [{ role: "user" as const, content: userMessage }];
+      const t0 = Date.now();
       const msg = await anthropic.messages.create({
-        model: "claude-opus-4-7",
-        max_tokens: 8000,
+        model,
+        max_tokens: maxTokens,
         tools: [{
           name: "create_website_spec",
           description: "Generates the complete website specification as structured JSON. Call this tool with the full spec.",
@@ -145,8 +151,19 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
         }],
         tool_choice: { type: "tool", name: "create_website_spec" },
         system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userMessage }],
+        messages: msgs,
       }, { timeout: 120_000 });
+
+      await logAiCall({
+        siteId: id,
+        operation: "generate_site",
+        model,
+        maxTokens,
+        systemPrompt: SYSTEM_PROMPT,
+        messages: msgs,
+        response: msg,
+        durationMs: Date.now() - t0,
+      });
 
       const toolUse = msg.content.find(c => c.type === "tool_use");
       if (!toolUse || toolUse.type !== "tool_use") {

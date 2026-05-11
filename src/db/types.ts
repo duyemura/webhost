@@ -6,6 +6,8 @@ export interface Database {
   scripts: ScriptsTable;
   business_profiles: BusinessProfilesTable;
   assets: AssetsTable;
+  ai_calls: AiCallsTable;
+  site_quality_signals: SiteQualitySignalsTable;
 }
 
 export interface UsersTable {
@@ -105,3 +107,38 @@ export interface AssetsTable {
 export type Asset = Selectable<AssetsTable>;
 export type NewAsset = Insertable<AssetsTable>;
 export type AssetUpdate = Updateable<AssetsTable>;
+
+export interface AiCallsTable {
+  id: Generated<string>;
+  site_id: string | null;
+  operation: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: number;
+  max_tokens: number | null;
+  system_prompt: string | null;
+  messages: unknown | null;
+  response_text: string | null;
+  duration_ms: number | null;
+  created_at: Generated<Date>;
+}
+
+export type AiCall = Selectable<AiCallsTable>;
+export type NewAiCall = Insertable<AiCallsTable>;
+
+export interface SiteQualitySignalsTable {
+  id: Generated<string>;
+  site_id: string;
+  ai_call_id: string | null;
+  page_slug: string | null;
+  action: string;
+  rating: number | null;
+  metadata: unknown | null;
+  created_at: Generated<Date>;
+}
+
+export type SiteQualitySignal = Selectable<SiteQualitySignalsTable>;
+export type NewSiteQualitySignal = Insertable<SiteQualitySignalsTable>;

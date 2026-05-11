@@ -182,6 +182,15 @@ export const THEME_PRESET_LABELS: Record<ThemePreset, string> = {
   energetic: "Energetic",
 };
 
+export const THEME_PRESET_DESCRIPTIONS: Record<ThemePreset, string> = {
+  bold: "High contrast, strong type, punchy CTAs",
+  professional: "Clean and corporate, navy, trustworthy",
+  warm: "Earthy oranges, friendly and approachable",
+  dark: "Dark backgrounds, premium modern feel",
+  minimal: "Light and airy, lots of whitespace",
+  energetic: "Bright greens, fitness and health vibes",
+};
+
 export const generateSite = (siteId: string, body: { prompt: string; theme_preset?: string }) =>
   apiFetch<Site>(`/sites/${siteId}/generate`, { method: "POST", body: JSON.stringify(body) });
 
@@ -343,6 +352,38 @@ export const searchPlaces = (q: string) =>
 
 export const getPlaceDetail = (id: string) =>
   apiFetch<PlaceDetail>(`/places/${encodeURIComponent(id)}`);
+
+// ── AI analytics & quality signals ───────────────────────────────────────────
+
+export type QualityAction = "accepted" | "rebuilt" | "rated" | "section_edited" | "section_deleted" | "section_added";
+
+export interface QualitySignalBody {
+  ai_call_id?: string | null;
+  page_slug?: string | null;
+  action: QualityAction;
+  rating?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
+export const postQualitySignal = (siteId: string, body: QualitySignalBody) =>
+  apiFetch<{ id: string }>(`/sites/${siteId}/quality-signal`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export interface AiCallSummary {
+  id: string;
+  operation: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export const getSiteAiCalls = (siteId: string) =>
+  apiFetch<AiCallSummary[]>(`/sites/${siteId}/ai-calls`);
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ import { scrapeWebsite } from "../lib/scrape.js";
 import type { ScrapeResult, ScrapedPage } from "../lib/scrape.js";
 import { extractBrandSignals, extractBrandKit, downloadSiteImage } from "../lib/brand.js";
 import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
+import { logAiCall } from "../lib/ai-logger.js";
 
 const gmbProfileSchema = z.object({
   biz_name: z.string().max(200).optional(),
@@ -104,7 +105,8 @@ function buildPageToolSchema(): object {
     required: ["title", "nav_label", "meta_description", "sections"],
     properties: {
       title: { type: "string", description: "Full SEO page title (no site name suffix)" },
-      nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words, no location suffix. Examples: 'CrossFit', 'Bootcamp', 'Personal training', 'Pricing', 'Contact'" },
+      nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words. Strip any city, state, or SEO decorators. 'CrossFit Classes in Denver, CO' → 'CrossFit'. 'About Our Gym in Kansas City' → 'About us'. 'Contact Us Today' → 'Contact'." },
+      nav_group: { type: "string", description: "Optional dropdown group name. Set this to group related pages under a single nav dropdown. Example: all program pages get nav_group 'Programs'. Only set when 2+ pages share a clear category." },
       meta_description: { type: "string", description: "Max 160 chars" },
       sections: {
         type: "array",
@@ -147,18 +149,24 @@ interface PageResult {
   slug: string;
   title: string;
   nav_label?: string;
+  nav_group?: string;
   meta_description: string;
   sections: unknown[];
   gaps: string[];
+  aiCallId: string | null;
 }
 
-async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[]): Promise<PageResult> {
+async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], siteId?: string): Promise<PageResult & { aiCallId: string | null }> {
   const toolSchema = buildPageToolSchema();
   const userMessage = buildPageUserMessage(page, siteName, images);
+  const model = "claude-opus-4-7";
+  const maxTokens = 4000;
+  const msgs = [{ role: "user" as const, content: userMessage }];
 
+  const t0 = Date.now();
   const msg = await anthropic.messages.create({
-    model: "claude-opus-4-7",
-    max_tokens: 4000,
+    model,
+    max_tokens: maxTokens,
     tools: [{
       name: "create_page_spec",
       description: "Maps this page's scraped content into a structured block spec.",
@@ -166,8 +174,20 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
     }],
     tool_choice: { type: "tool", name: "create_page_spec" },
     system: PAGE_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userMessage }],
+    messages: msgs,
   }, { timeout: 90_000 });
+  const durationMs = Date.now() - t0;
+
+  const aiCallId = await logAiCall({
+    siteId,
+    operation: "import_page",
+    model,
+    maxTokens,
+    systemPrompt: PAGE_SYSTEM_PROMPT,
+    messages: msgs,
+    response: msg,
+    durationMs,
+  });
 
   const toolUse = msg.content.find(c => c.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
@@ -182,9 +202,11 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
     slug,
     title: String(input.title ?? page.title ?? slug),
     nav_label: input.nav_label ? String(input.nav_label) : undefined,
+    nav_group: input.nav_group ? String(input.nav_group) : undefined,
     meta_description: String(input.meta_description ?? ""),
     sections,
     gaps,
+    aiCallId,
   };
 }
 
@@ -300,7 +322,11 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     for (let i = 0; i < scrape.pages.length; i++) {
       const page = scrape.pages[i];
       const slug = i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`);
-      const label = page.title?.split(/[-|]/)[0].trim() || slug;
+      // Use the first section heading as the short page label — it's usually the clean page name
+      // (avoids SEO-decorated titles like "CrossFit Classes in Overland Park, KS | Site")
+      const firstHeading = page.sections.find(s => s.heading)?.heading ?? "";
+      const rawLabel = firstHeading || (page.title?.split(/[-|]/)[0] ?? slug);
+      const label = rawLabel.slice(0, 40).trim() || slug;
 
       sseWrite(reply, "ai_page_start", { slug, label, index: i, total: scrape.pages.length });
 
@@ -309,13 +335,13 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
         let result: PageResult;
         try {
-          result = await processPage(page, slug, scrape.site_name, downloadedImages);
+          result = await processPage(page, slug, scrape.site_name, downloadedImages, id);
         } finally {
           clearInterval(heartbeat);
         }
         pageResults.push(result);
         allGaps.push(...result.gaps);
-        sseWrite(reply, "ai_page_done", { slug, label: result.title, blocks: result.sections.length });
+        sseWrite(reply, "ai_page_done", { slug, label: result.nav_label ?? label, blocks: result.sections.length, aiCallId: result.aiCallId });
       } catch (err) {
         sseWrite(reply, "error", { message: (err as Error).message });
         reply.raw.end();
@@ -326,7 +352,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     // 3. Assemble + validate full spec
     const specData = {
       version: 1,
-      pages: pageResults.map(({ gaps: _g, ...p }) => p),
+      pages: pageResults.map(({ gaps: _g, aiCallId: _a, ...p }) => p),
     };
 
     const parsed = specSchema.safeParse(specData);

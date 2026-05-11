@@ -24,14 +24,23 @@ import {
   slugify,
   searchPlaces,
   getPlaceDetail,
+  postQualitySignal,
   THEME_PRESETS,
   THEME_PRESET_LABELS,
+  THEME_PRESET_DESCRIPTIONS,
   type Site,
   type ThemePreset,
   type ImportSummary,
   type PlaceSearchResult,
   type PlaceDetail,
 } from "../api";
+
+interface PageRatingItem {
+  slug: string;
+  label: string;
+  aiCallId: string | null;
+  rating: number | null;
+}
 import { useAuth } from "../context/AuthContext";
 
 function SiteCard({ site }: { site: Site }) {
@@ -115,6 +124,7 @@ function CreateSiteDialog({
   const [importUrlManual, setImportUrlManual] = useState("");
   const gmbDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const importAbortRef = useRef<AbortController | null>(null);
+  const pageSubstepRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Import state
   const [importLog, setImportLog] = useState<string[]>([]);
@@ -122,6 +132,9 @@ function CreateSiteDialog({
   const [importError, setImportError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
+  const [pageRatings, setPageRatings] = useState<PageRatingItem[]>([]);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [pendingSiteId, setPendingSiteId] = useState<string | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // Derived: the URL to scan — GMB website takes priority, manual input is fallback for both
@@ -148,6 +161,9 @@ function CreateSiteDialog({
     setImportError(null);
     setIsImporting(false);
     setAiStatus(null);
+    setPageRatings([]);
+    setRatingSubmitted(false);
+    setPendingSiteId(null);
   }
 
   // Debounced GMB search
@@ -212,6 +228,8 @@ function CreateSiteDialog({
     setIsImporting(true);
     setImportError(null);
     setImportLog([]);
+    setPageRatings([]);
+    setRatingSubmitted(false);
 
     const res = await fetch(`/api/sites/${siteId}/import-url`, {
       method: "POST",
@@ -301,15 +319,31 @@ function CreateSiteDialog({
             const pages = data.pages as number;
             addLog(`─── Building ${pages} page${pages !== 1 ? "s" : ""} with AI ───`);
           } else if (eventLine === "ai_page_start") {
-            setAiStatus(`Creating ${data.label as string}…`);
+            const pageLabel = data.label as string;
+            const substeps = ["mapping sections", "writing copy", "choosing layouts", "assigning images", "finalizing"];
+            let substepIdx = 0;
+            if (pageSubstepRef.current) clearInterval(pageSubstepRef.current);
+            setAiStatus(`Creating ${pageLabel}… ${substeps[0]}`);
+            pageSubstepRef.current = setInterval(() => {
+              substepIdx = (substepIdx + 1) % substeps.length;
+              setAiStatus(`Creating ${pageLabel}… ${substeps[substepIdx]}`);
+            }, 4000);
           } else if (eventLine === "ai_page_done") {
-            addLog(`✓ ${data.label as string} — ${data.blocks as number} block${(data.blocks as number) !== 1 ? "s" : ""}`);
+            if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
+            const pageLabel = data.label as string;
+            const pageSlug = data.slug as string;
+            const aiCallId = (data.aiCallId as string | null) ?? null;
+            addLog(`✓ ${pageLabel} — ${data.blocks as number} block${(data.blocks as number) !== 1 ? "s" : ""}`);
             setAiStatus(null);
+            setPageRatings(prev => [...prev, { slug: pageSlug, label: pageLabel, aiCallId, rating: null }]);
           } else if (eventLine === "complete") {
+            if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
             setAiStatus(null);
             finalSite = data.site as Site;
             finalSummary = data.summary as ImportSummary;
+            setPendingSiteId((data.site as Site).id);
           } else if (eventLine === "error") {
+            if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
             setAiStatus(null);
             setImportError(data.message as string);
             setIsImporting(false);
@@ -339,10 +373,14 @@ function CreateSiteDialog({
       queryClient.invalidateQueries({ queryKey: ["sites"] });
       if (summary) {
         setImportSummary(summary);
-        setTimeout(() => {
-          handleClose(false);
-          navigate(`/sites/${site.id}`);
-        }, 3000);
+        // If we have pages to rate, stay open for rating — user dismisses manually
+        // If no pages collected (shouldn't happen), fall back to auto-close
+        if (pageRatings.length === 0) {
+          setTimeout(() => {
+            handleClose(false);
+            navigate(`/sites/${site.id}`);
+          }, 3000);
+        }
       } else {
         handleClose(false);
         navigate(`/sites/${created.id}`);
@@ -571,20 +609,21 @@ function CreateSiteDialog({
                 {importReady && (
                   <div className="tw-space-y-1.5">
                     <Label>Theme</Label>
-                    <div className="tw-flex tw-flex-wrap tw-gap-2">
+                    <div className="tw-grid tw-grid-cols-2 tw-gap-2">
                       {THEME_PRESETS.map(preset => (
                         <button
                           key={preset}
                           type="button"
                           disabled={isPending}
                           onClick={() => setTheme(preset)}
-                          className={`tw-flex tw-items-center tw-gap-1.5 tw-px-2.5 tw-py-1 tw-rounded-full tw-text-xs tw-font-medium tw-border tw-transition-all ${
+                          className={`tw-flex tw-flex-col tw-items-start tw-gap-0.5 tw-px-3 tw-py-2 tw-rounded-lg tw-text-left tw-border tw-transition-all ${
                             theme === preset
                               ? "tw-border-foreground tw-bg-foreground tw-text-background"
                               : "tw-border-border tw-text-foreground hover:tw-border-foreground/50"
                           }`}
                         >
-                          {THEME_PRESET_LABELS[preset]}
+                          <span className="tw-text-xs tw-font-medium">{THEME_PRESET_LABELS[preset]}</span>
+                          <span className={`tw-text-xs ${theme === preset ? "tw-text-background/70" : "tw-text-muted-foreground"}`}>{THEME_PRESET_DESCRIPTIONS[preset]}</span>
                         </button>
                       ))}
                     </div>
@@ -630,31 +669,100 @@ function CreateSiteDialog({
               <p className="tw-text-sm tw-text-error">{importError}</p>
             )}
 
-            {/* Import success summary */}
+            {/* Import success + rating */}
             {importSummary && (
-              <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-                <div className="tw-flex tw-items-center tw-gap-2">
-                  <CheckCircle2 className="tw-h-4 tw-w-4 tw-text-success tw-shrink-0" />
-                  <p className="tw-text-sm tw-font-medium">
-                    Imported {importSummary.pages_generated} pages · {importSummary.blocks_generated} blocks
-                  </p>
-                </div>
-                {importSummary.gaps.length > 0 && (
-                  <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1">
-                    <div className="tw-flex tw-items-center tw-gap-1.5">
-                      <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning tw-shrink-0" />
-                      <p className="tw-text-xs tw-font-medium tw-text-warning">
-                        {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} couldn&apos;t be fully mapped
-                      </p>
+              <div className="tw-space-y-3">
+                <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
+                  <div className="tw-flex tw-items-center tw-gap-2">
+                    <CheckCircle2 className="tw-h-4 tw-w-4 tw-text-success tw-shrink-0" />
+                    <p className="tw-text-sm tw-font-medium">
+                      Imported {importSummary.pages_generated} pages · {importSummary.blocks_generated} blocks
+                    </p>
+                  </div>
+                  {importSummary.gaps.length > 0 && (
+                    <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1">
+                      <div className="tw-flex tw-items-center tw-gap-1.5">
+                        <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning tw-shrink-0" />
+                        <p className="tw-text-xs tw-font-medium tw-text-warning">
+                          {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} couldn&apos;t be fully mapped
+                        </p>
+                      </div>
+                      <ul className="tw-space-y-0.5">
+                        {importSummary.gaps.map((gap, i) => (
+                          <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="tw-space-y-0.5">
-                      {importSummary.gaps.map((gap, i) => (
-                        <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
-                      ))}
-                    </ul>
+                  )}
+                </div>
+
+                {/* Per-page quality rating */}
+                {!ratingSubmitted && pageRatings.length > 0 && (
+                  <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
+                    <p className="tw-text-xs tw-font-medium tw-text-foreground">How well did the AI capture each page? (helps us improve)</p>
+                    {pageRatings.map((item) => (
+                      <div key={item.slug} className="tw-flex tw-items-center tw-justify-between">
+                        <span className="tw-text-xs tw-text-muted-foreground">{item.label}</span>
+                        <div className="tw-flex tw-gap-0.5">
+                          {[1,2,3,4,5].map(star => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setPageRatings(prev => prev.map(p => p.slug === item.slug ? { ...p, rating: star } : p))}
+                              className={`tw-text-lg tw-leading-none tw-transition-colors ${(item.rating ?? 0) >= star ? "tw-text-yellow-400" : "tw-text-muted-foreground/30 hover:tw-text-yellow-300"}`}
+                            >★</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="tw-flex tw-gap-2 tw-pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          setRatingSubmitted(true);
+                          if (pendingSiteId) { handleClose(false); navigate(`/sites/${pendingSiteId}`); }
+                        }}
+                      >
+                        Skip
+                      </Button>
+                      <Button
+                        size="sm"
+                        type="button"
+                        disabled={pageRatings.every(p => p.rating === null)}
+                        onClick={async () => {
+                          if (!pendingSiteId) return;
+                          await Promise.allSettled(
+                            pageRatings
+                              .filter(p => p.rating !== null)
+                              .map(p => postQualitySignal(pendingSiteId, {
+                                ai_call_id: p.aiCallId,
+                                page_slug: p.slug,
+                                action: "rated",
+                                rating: p.rating!,
+                              }))
+                          );
+                          setRatingSubmitted(true);
+                          handleClose(false);
+                          navigate(`/sites/${pendingSiteId}`);
+                        }}
+                      >
+                        Submit rating
+                      </Button>
+                    </div>
                   </div>
                 )}
-                <p className="tw-text-xs tw-text-muted-foreground">Opening your site editor…</p>
+
+                {(ratingSubmitted || pageRatings.length === 0) && (
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={() => { handleClose(false); if (pendingSiteId) navigate(`/sites/${pendingSiteId}`); }}
+                  >
+                    Open site editor
+                  </Button>
+                )}
               </div>
             )}
 

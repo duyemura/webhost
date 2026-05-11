@@ -100,6 +100,42 @@ const sql = `
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  -- Phase 9: AI call logging — token cost, model, prompt/response, per-site
+  CREATE TABLE IF NOT EXISTS ai_calls (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id          UUID REFERENCES sites(id) ON DELETE SET NULL,
+    operation        TEXT NOT NULL,
+    model            TEXT NOT NULL,
+    input_tokens     INTEGER NOT NULL DEFAULT 0,
+    output_tokens    INTEGER NOT NULL DEFAULT 0,
+    cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+    cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd         NUMERIC(10,6) NOT NULL DEFAULT 0,
+    max_tokens       INTEGER,
+    system_prompt    TEXT,
+    messages         JSONB,
+    response_text    TEXT,
+    duration_ms      INTEGER,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS ai_calls_site_id_idx ON ai_calls(site_id);
+  CREATE INDEX IF NOT EXISTS ai_calls_operation_idx ON ai_calls(operation);
+  CREATE INDEX IF NOT EXISTS ai_calls_created_at_idx ON ai_calls(created_at);
+
+  -- Phase 9: Quality signals — explicit ratings + implicit edit signals
+  CREATE TABLE IF NOT EXISTS site_quality_signals (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    ai_call_id  UUID REFERENCES ai_calls(id) ON DELETE SET NULL,
+    page_slug   TEXT,
+    action      TEXT NOT NULL,
+    rating      INTEGER CHECK (rating BETWEEN 1 AND 5),
+    metadata    JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS site_quality_signals_site_id_idx ON site_quality_signals(site_id);
+  CREATE INDEX IF NOT EXISTS site_quality_signals_ai_call_id_idx ON site_quality_signals(ai_call_id);
 `;
 
 const client = new pg.Client(config.db);

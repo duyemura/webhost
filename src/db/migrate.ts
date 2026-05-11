@@ -199,6 +199,11 @@ const sql = `
   );
   CREATE INDEX IF NOT EXISTS crawl_cache_url_hash_idx  ON crawl_cache(url_hash);
   CREATE INDEX IF NOT EXISTS crawl_cache_expires_at_idx ON crawl_cache(expires_at);
+
+  -- Phase 12: Persistent build progress — survives page reloads
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS build_status TEXT;
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS build_error  TEXT;
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS build_progress JSONB;
 `;
 
 const client = new pg.Client(config.db);

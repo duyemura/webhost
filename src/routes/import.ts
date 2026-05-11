@@ -219,6 +219,46 @@ function sseWrite(reply: import("fastify").FastifyReply, event: string, data: un
   reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+// Build-progress shape stored in sites.build_progress
+export interface BuildProgressPage {
+  slug: string;
+  label: string;
+  status: "pending" | "active" | "done";
+  blocks?: number;
+}
+
+interface BuildProgress {
+  phase: "scraping" | "brand" | "building" | null;
+  phase_label: string | null;
+  pages: BuildProgressPage[];
+}
+
+async function writeBuildProgress(siteId: string, progress: BuildProgress): Promise<void> {
+  try {
+    await db.updateTable("sites")
+      .set({ build_progress: JSON.stringify(progress) })
+      .where("id", "=", siteId)
+      .execute();
+  } catch {
+    // non-fatal — real-time SSE is the primary channel
+  }
+}
+
+async function setBuildStatus(siteId: string, status: "building" | null, error?: string): Promise<void> {
+  try {
+    await db.updateTable("sites")
+      .set({
+        build_status: status,
+        build_error: error ?? null,
+        ...(status === null ? { build_progress: null } : {}),
+      })
+      .where("id", "=", siteId)
+      .execute();
+  } catch {
+    // non-fatal
+  }
+}
+
 interface PageResult {
   slug: string;
   title: string;
@@ -317,6 +357,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
 
     if (!site) return reply.notFound();
 
+    // Mark build in progress — persists across reloads
+    await setBuildStatus(id, "building");
+
     // Switch to SSE streaming
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -325,19 +368,25 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       "X-Accel-Buffering": "no",
     });
 
+    // Track progress state for DB writes
+    const progress: BuildProgress = { phase: "scraping", phase_label: null, pages: [] };
+
     // 1. Scrape — use cache if available (3-day TTL), unless force_crawl is set
     let scrape: ScrapeResult;
     const cachedScrape = body.data.force_crawl ? null : await getCachedCrawl(body.data.url);
     if (cachedScrape) {
       scrape = cachedScrape;
       sseWrite(reply, "scrape_cached", { pages: scrape.pages.length, url: body.data.url });
+      progress.phase_label = `Using cached crawl — ${scrape.pages.length} pages`;
     } else {
       try {
         scrape = await scrapeWebsite(body.data.url, (e) => {
           sseWrite(reply, e.type, e);
         });
       } catch (err) {
-        sseWrite(reply, "error", { message: (err as Error).message });
+        const msg = (err as Error).message;
+        sseWrite(reply, "error", { message: msg });
+        await setBuildStatus(id, null, msg);
         reply.raw.end();
         return reply;
       }
@@ -345,6 +394,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // 2. Extract brand kit from home page HTML
+    progress.phase = "brand";
+    progress.phase_label = "Extracting brand colors and logo…";
+    void writeBuildProgress(id, progress);
     sseWrite(reply, "brand_start", {});
     let brandKit;
     try {
@@ -410,6 +462,21 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
 
     // 4. Build each page individually so we can emit per-page progress
     const instructions = await fetchInstructions();
+
+    // Initialize page list in progress before AI starts
+    const pageLabels: string[] = scrape.pages.map((page, i) => {
+      const firstHeading = page.sections.find(s => s.heading)?.heading ?? "";
+      const rawLabel = firstHeading || (page.title?.split(/[-|]/)[0] ?? `page-${i}`);
+      return rawLabel.slice(0, 40).trim() || `page-${i}`;
+    });
+    progress.phase = "building";
+    progress.phase_label = `0 of ${scrape.pages.length}`;
+    progress.pages = scrape.pages.map((page, i) => ({
+      slug: i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`),
+      label: pageLabels[i],
+      status: "pending" as const,
+    }));
+    void writeBuildProgress(id, progress);
     sseWrite(reply, "ai_start", { pages: scrape.pages.length });
 
     const pageResults: PageResult[] = [];
@@ -418,12 +485,12 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     for (let i = 0; i < scrape.pages.length; i++) {
       const page = scrape.pages[i];
       const slug = i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`);
-      // Use the first section heading as the short page label — it's usually the clean page name
-      // (avoids SEO-decorated titles like "CrossFit Classes in Overland Park, KS | Site")
-      const firstHeading = page.sections.find(s => s.heading)?.heading ?? "";
-      const rawLabel = firstHeading || (page.title?.split(/[-|]/)[0] ?? slug);
-      const label = rawLabel.slice(0, 40).trim() || slug;
+      const label = pageLabels[i];
 
+      // Mark this page active in DB progress
+      progress.pages[i] = { ...progress.pages[i], slug, label, status: "active" };
+      progress.phase_label = `${i + 1} of ${scrape.pages.length}`;
+      void writeBuildProgress(id, progress);
       sseWrite(reply, "ai_page_start", { slug, label, index: i, total: scrape.pages.length });
 
       try {
@@ -437,9 +504,16 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         }
         pageResults.push(result);
         allGaps.push(...result.gaps);
-        sseWrite(reply, "ai_page_done", { slug, label: result.nav_label ?? label, blocks: result.sections.length, costEventId: result.costEventId });
+
+        // Mark done in DB progress
+        const doneLabel = result.nav_label ?? label;
+        progress.pages[i] = { slug, label: doneLabel, status: "done", blocks: result.sections.length };
+        void writeBuildProgress(id, progress);
+        sseWrite(reply, "ai_page_done", { slug, label: doneLabel, blocks: result.sections.length, costEventId: result.costEventId });
       } catch (err) {
-        sseWrite(reply, "error", { message: (err as Error).message });
+        const msg = (err as Error).message;
+        sseWrite(reply, "error", { message: msg });
+        await setBuildStatus(id, null, msg);
         reply.raw.end();
         return reply;
       }
@@ -482,6 +556,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           generation_prompt: `Imported from ${body.data.url}`,
           updated_at: now,
           draft_updated_at: now,
+          build_status: null,
+          build_error: null,
+          build_progress: null,
           ...(site.published_at ? {} : { published_at: now }),
         })
         .where("id", "=", id)
@@ -524,7 +601,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         }
       }
     } catch (err) {
-      sseWrite(reply, "error", { message: `Failed to save site: ${(err as Error).message}` });
+      const msg = `Failed to save site: ${(err as Error).message}`;
+      sseWrite(reply, "error", { message: msg });
+      await setBuildStatus(id, null, msg);
       reply.raw.end();
       return reply;
     }

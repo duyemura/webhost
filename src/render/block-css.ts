@@ -45,14 +45,30 @@ export const BLOCK_CSS = `
 }
 /* Logo */
 .site-nav__logo { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
-.site-nav__logo-img { height: 48px; width: auto; max-width: 180px; object-fit: contain; }
+.site-nav__logo-img {
+  height: 48px; width: auto; max-width: 180px; object-fit: contain;
+  /* Transparent nav: invert logo to white so it shows over any dark hero */
+  filter: brightness(0) invert(1);
+  transition: filter 0.25s;
+}
+.site-nav--scrolled .site-nav__logo-img {
+  /* Scrolled: restore natural colors on light background */
+  filter: none;
+}
 .site-nav__logo-text {
   font-family: var(--font-heading);
   font-weight: var(--font-heading-weight);
   font-size: 1.125rem;
-  color: var(--color-fg);
+  /* Transparent: white text over dark hero */
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
   text-transform: var(--heading-transform);
   letter-spacing: var(--heading-tracking);
+  transition: color 0.25s, text-shadow 0.25s;
+}
+.site-nav--scrolled .site-nav__logo-text {
+  color: var(--color-fg);
+  text-shadow: none;
 }
 /* Nav links */
 .site-nav__links {
@@ -70,7 +86,9 @@ export const BLOCK_CSS = `
   gap: 0.3rem;
   padding: 0.5rem 0.75rem;
   text-decoration: none;
-  color: var(--color-fg);
+  /* Transparent nav: white over dark hero */
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
   font-family: var(--font-heading);
   font-size: 0.8125rem;
   font-weight: 700;
@@ -79,8 +97,14 @@ export const BLOCK_CSS = `
   background: none;
   border: none;
   cursor: pointer;
-  transition: color 0.15s, opacity 0.15s;
+  transition: color 0.25s, text-shadow 0.25s, opacity 0.15s;
   white-space: nowrap;
+}
+/* Scrolled nav: switch to site foreground color */
+.site-nav--scrolled .site-nav__links > li > a,
+.site-nav--scrolled .site-nav__group-trigger {
+  color: var(--color-fg);
+  text-shadow: none;
 }
 .site-nav__links > li > a:hover,
 .site-nav__group:hover .site-nav__group-trigger,

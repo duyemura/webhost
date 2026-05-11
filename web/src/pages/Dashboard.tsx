@@ -46,6 +46,7 @@ import { useAuth } from "../context/AuthContext";
 function SiteCard({ site }: { site: Site }) {
   const navigate = useNavigate();
   const isPublished = !!site.published_at;
+  const isBuilding = site.build_status === "building";
   const siteUrl = `http://${site.slug}.localhost:3000`;
 
   return (
@@ -55,9 +56,16 @@ function SiteCard({ site }: { site: Site }) {
           <CardTitle className="tw-text-base tw-font-semibold tw-leading-tight">
             {site.name}
           </CardTitle>
-          <Badge variant={isPublished ? "success" : "outline"} className="tw-shrink-0">
-            {isPublished ? "Published" : "Draft"}
-          </Badge>
+          {isBuilding ? (
+            <Badge variant="warning" className="tw-shrink-0 tw-flex tw-items-center tw-gap-1">
+              <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin" />
+              Building
+            </Badge>
+          ) : (
+            <Badge variant={isPublished ? "success" : "outline"} className="tw-shrink-0">
+              {isPublished ? "Published" : "Draft"}
+            </Badge>
+          )}
         </div>
         <p className="tw-text-xs tw-text-muted-foreground tw-font-mono">
           {site.slug}
@@ -761,6 +769,9 @@ export function Dashboard() {
   const { data: sites, isLoading } = useQuery({
     queryKey: ["sites"],
     queryFn: getSites,
+    // Poll while any site is building
+    refetchInterval: (query) =>
+      query.state.data?.some(s => s.build_status === "building") ? 3000 : false,
   });
 
   return (

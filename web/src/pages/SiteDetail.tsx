@@ -71,6 +71,7 @@ import {
   type Theme,
   type ImportSummary,
   type Site,
+  type BuildProgress,
   DEFAULT_THEME,
   updateSpec,
   updateTheme,
@@ -971,6 +972,53 @@ function UrlBar({ slug, customDomain }: { slug: string; customDomain: string | n
   );
 }
 
+function BuildProgressPanel({ progress, error }: { progress: BuildProgress | null; error: string | null }) {
+  const phase = progress?.phase;
+  const phaseLabel = progress?.phase_label;
+  const pages = progress?.pages ?? [];
+
+  return (
+    <div className="tw-rounded-lg tw-border tw-border-border tw-overflow-hidden">
+      <div className="tw-flex tw-items-center tw-gap-2.5 tw-px-3 tw-py-2.5 tw-bg-muted tw-border-b tw-border-border">
+        <Loader2 className="tw-h-3.5 tw-w-3.5 tw-animate-spin tw-shrink-0 tw-text-primary" />
+        <p className="tw-text-xs tw-font-medium tw-text-foreground">
+          {phase === "scraping" && "Scanning website"}
+          {phase === "brand" && "Extracting brand"}
+          {phase === "building" && `Building pages${phaseLabel ? ` — ${phaseLabel}` : ""}`}
+          {!phase && "Starting…"}
+        </p>
+        {phaseLabel && phase !== "building" && (
+          <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{phaseLabel}</p>
+        )}
+      </div>
+      {phase === "building" && pages.length > 0 && (
+        <div className="tw-divide-y tw-divide-border tw-max-h-64 tw-overflow-y-auto">
+          {pages.map((page) => (
+            <div key={page.slug} className="tw-flex tw-items-center tw-gap-2.5 tw-px-3 tw-py-2">
+              {page.status === "done" && <CheckCircle2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-success" />}
+              {page.status === "active" && <Loader2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-animate-spin tw-text-primary" />}
+              {page.status === "pending" && <div className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-rounded-full tw-border tw-border-border" />}
+              <div className="tw-min-w-0 tw-flex-1">
+                <p className={`tw-text-xs tw-font-medium tw-truncate ${page.status === "pending" ? "tw-text-muted-foreground" : "tw-text-foreground"}`}>
+                  {page.label}
+                </p>
+                {page.status === "done" && page.blocks != null && (
+                  <p className="tw-text-xs tw-text-muted-foreground">{page.blocks} block{page.blocks !== 1 ? "s" : ""}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="tw-px-3 tw-py-2.5 tw-border-t tw-border-border">
+          <p className="tw-text-xs tw-text-error">{error}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function extractImportUrl(generationPrompt: string | null): string {
   if (!generationPrompt) return "";
   const match = generationPrompt.match(/^Imported from (.+)$/);
@@ -1331,6 +1379,8 @@ export function SiteDetail() {
     queryKey: ["sites", id],
     queryFn: () => getSite(id!),
     enabled: !!id,
+    // Poll every 3s while a build is in progress
+    refetchInterval: (query) => query.state.data?.build_status === "building" ? 3000 : false,
   });
 
   const { data: scriptsData } = useQuery({
@@ -1441,6 +1491,21 @@ export function SiteDetail() {
       {/* Main panel — 1/3 width on lg+, full width on mobile */}
       <div className="tw-flex-1 lg:tw-flex-none lg:tw-w-1/3 tw-shrink-0 tw-flex tw-flex-col tw-overflow-hidden lg:tw-border-r lg:tw-border-border">
         <div className="tw-overflow-y-auto tw-flex-1 tw-pr-6 tw-pb-8">
+
+          {/* Persistent build progress — visible regardless of active tab */}
+          {site.build_status === "building" && (
+            <div className="tw-mt-6 tw-mb-0">
+              <p className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-mb-2 tw-uppercase tw-tracking-wide">Building site…</p>
+              <BuildProgressPanel progress={site.build_progress} error={null} />
+              <p className="tw-text-xs tw-text-muted-foreground tw-mt-2">You can navigate away — this will update automatically when done.</p>
+            </div>
+          )}
+          {site.build_status === "error" && site.build_error && (
+            <div className="tw-mt-6 tw-mb-0 tw-rounded-lg tw-border tw-border-error/30 tw-bg-error/5 tw-px-3 tw-py-2.5">
+              <p className="tw-text-xs tw-font-semibold tw-text-error tw-mb-0.5">Build failed</p>
+              <p className="tw-text-xs tw-text-error/80">{site.build_error}</p>
+            </div>
+          )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="tw-mt-6">
             <div className="tw-flex tw-items-center tw-justify-between tw-mb-6">

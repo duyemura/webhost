@@ -39,6 +39,9 @@ export interface SitesTable {
   theme_preset: string | null;
   published_theme: unknown | null;
   brand_kit: unknown | null;
+  build_status: string | null;
+  build_error: string | null;
+  build_progress: unknown | null;
 }
 
 export type User = Selectable<UsersTable>;

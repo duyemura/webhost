@@ -31,6 +31,19 @@ export const DEFAULT_BRAND_KIT: BrandKit = {
   body_font: "Inter",
 };
 
+export interface BuildProgressPage {
+  slug: string;
+  label: string;
+  status: "pending" | "active" | "done";
+  blocks?: number;
+}
+
+export interface BuildProgress {
+  phase: "scraping" | "brand" | "building" | null;
+  phase_label: string | null;
+  pages: BuildProgressPage[];
+}
+
 export interface Site {
   id: string;
   user_id: string;
@@ -51,6 +64,9 @@ export interface Site {
   theme_preset: string | null;
   published_theme: unknown | null;
   brand_kit: BrandKit | null;
+  build_status: string | null;
+  build_error: string | null;
+  build_progress: BuildProgress | null;
 }
 
 function getToken(): string | null {

@@ -12,33 +12,20 @@ export function buildSocialProofBar(profile: BusinessProfile | null): string {
 
   const items: string[] = [];
 
-  if (profile.gmb_rating != null) {
-    items.push(`★ ${Number(profile.gmb_rating).toFixed(1)} Google rating`);
-  }
-  if (profile.gmb_review_count != null && profile.gmb_review_count > 0) {
-    items.push(`${profile.gmb_review_count.toLocaleString()} reviews`);
-  }
-  if (profile.biz_name) {
-    items.push(profile.biz_name);
-  }
-  if (profile.city && profile.state) {
-    items.push(`${profile.city}, ${profile.state}`);
-  }
-  if (profile.phone) {
-    items.push(profile.phone);
-  }
-  // Fallback: show clean domain name so the bar always has enough items
-  if (profile.website_url && items.length < 2) {
-    try {
-      items.push(new URL(profile.website_url).hostname.replace(/^www\./, ""));
-    } catch { /* ignore invalid URLs */ }
+  // Review signals first
+  if (profile.gmb_rating != null && profile.gmb_review_count != null && profile.gmb_review_count > 0) {
+    items.push(`★ ${Number(profile.gmb_rating).toFixed(1)} stars · ${profile.gmb_review_count.toLocaleString()} Google reviews`);
+  } else if (profile.gmb_rating != null) {
+    items.push(`★ ${Number(profile.gmb_rating).toFixed(1)} stars on Google`);
+  } else if (profile.gmb_review_count != null && profile.gmb_review_count > 0) {
+    items.push(`${profile.gmb_review_count.toLocaleString()} Google reviews`);
   }
 
-  // Inject up to 3 review snippets (truncated to ~80 chars)
+  // Review quotes (up to 5, truncated to ~100 chars)
   if (Array.isArray(profile.gmb_reviews)) {
-    for (const r of (profile.gmb_reviews as GmbReview[]).slice(0, 3)) {
+    for (const r of (profile.gmb_reviews as GmbReview[]).slice(0, 5)) {
       if (!r.text) continue;
-      const snippet = r.text.length > 80 ? r.text.slice(0, 77) + "…" : r.text;
+      const snippet = r.text.length > 100 ? r.text.slice(0, 97) + "…" : r.text;
       const stars = "★".repeat(Math.min(5, Math.round(r.rating)));
       items.push(`${stars} "${snippet}"`);
     }

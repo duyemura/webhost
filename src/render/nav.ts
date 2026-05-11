@@ -4,11 +4,17 @@ import { esc } from "./escape.js";
 // Pages that live in footer / sitemap only — never main nav
 const FOOTER_SLUG_RE = /privacy|terms|cancell|cookie|sitemap|legal|disclaimer|accessibility|refund|gdpr/i;
 const FOOTER_LABEL_RE = /^(privacy|terms|cancell|cookie|sitemap|legal|disclaimer|refund|blog)/i;
+// Operational/account pages that pollute the nav
+const OPERATIONAL_RE = /\b(pause|cancel|freeze|suspend|billing|account|login|register|sign.?up|member.?portal|waiver|liability|faq)\b/i;
+
+const MAX_NAV_ITEMS = 5; // max top-level entries before the CTA button
 
 function isNavHidden(p: { slug: string; nav_label?: string; title?: string }): boolean {
   if (FOOTER_SLUG_RE.test(p.slug)) return true;
   const label = (p.nav_label || p.title || "").trim();
-  return FOOTER_LABEL_RE.test(label);
+  if (FOOTER_LABEL_RE.test(label)) return true;
+  if (OPERATIONAL_RE.test(label)) return true;
+  return false;
 }
 
 export function buildNav(
@@ -79,8 +85,12 @@ export function buildNav(
     }
   }
 
-  // CTA: always present — contact page if available, otherwise first non-index page
-  const ctaPage = spec.pages.find(p => /^contact/.test(p.slug))
+  // Cap to MAX_NAV_ITEMS so the CTA button is never pushed off-screen
+  const visibleItems = rendered.slice(0, MAX_NAV_ITEMS);
+
+  // CTA: always present — prefer a "get started" / intro page, then contact, then first nav page
+  const ctaPage = spec.pages.find(p => /intro|start|trial|free|join/.test(p.slug))
+    ?? spec.pages.find(p => /^contact/.test(p.slug))
     ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p));
   const ctaHref = ctaPage ? `/${ctaPage.slug}` : "/contact";
   const ctaLabel = ctaPage?.nav_label ?? "Get started";
@@ -99,7 +109,7 @@ export function buildNav(
   <div class="container site-nav__inner">
     <a href="/" class="site-nav__logo" aria-label="${esc(cleanName)}">${logoHtml}</a>
     <ul class="site-nav__links">
-      ${rendered.join("\n      ")}
+      ${visibleItems.join("\n      ")}
       ${ctaHtml}
     </ul>
   </div>

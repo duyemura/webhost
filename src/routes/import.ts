@@ -50,7 +50,8 @@ Guidelines:
 - Each section needs a unique string "id" field (short descriptive IDs like "hero1", "about1").
 - Write a short meta_description (max 160 chars) that describes the page.
 - In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
-- Nav exclusions: Privacy Policy, Terms of Use, Terms & Conditions, Cancellation Policy, Cookie Policy, Sitemap, and any legal/policy pages must NOT appear in nav. Generate them as pages but they will be linked from the footer only. Blog pages must also be excluded (no CMS exists).
+- Nav exclusions: Privacy Policy, Terms of Use, Terms & Conditions, Cancellation Policy, Cookie Policy, Sitemap, any legal/policy pages, AND any operational/account pages (Pause Membership, Freeze Account, Member Portal, Login, Register, Waiver, FAQ) must NOT appear in nav. Generate them as pages but they will be linked from the footer only. Blog pages must also be excluded (no CMS exists).
+- Nav budget: the entire site should have AT MOST 5 top-level nav entries (standalone links + dropdown groups combined). If the source site has more, consolidate related pages under nav_group dropdowns. A nav with 3–4 entries plus the CTA button is ideal. Never create more than 2 dropdown groups.
 - Contact pages: always generate a simple contact-form block (type: "contact-form") with fields for name, email, phone (optional), and message. Do not attempt to replicate embedded third-party form widgets.
 - If the page appears to be a blog index or individual blog post, map it as a single rich-text block with a brief placeholder noting the blog will be managed separately.
 - Images: if the user message includes a "Downloaded images" list, those are real asset URLs — USE THEM. Rules:

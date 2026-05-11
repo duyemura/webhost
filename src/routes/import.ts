@@ -574,8 +574,37 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       // The social proof bar needs at least a profile row to render.
       {
         const p = body.data.gmb_profile;
+
+        // Extract email via regex from all scraped page text (contact pages usually have one)
+        const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+        let scrapedEmail: string | null = null;
+        outer: for (const pg of scrape.pages) {
+          for (const sec of pg.sections) {
+            const text = [sec.heading, sec.subheading, ...sec.paragraphs, ...sec.list_items].join(" ");
+            const m = text.match(EMAIL_RE);
+            if (m) { scrapedEmail = m[0]; break outer; }
+          }
+        }
+
+        // Description: brand kit positioning → homepage hero paragraph → null
+        let scrapedDescription: string | null = null;
+        if (brandKit?.positioning) {
+          scrapedDescription = brandKit.positioning;
+        } else {
+          const hero = scrape.pages[0]?.sections[0];
+          if (hero) {
+            const heading = hero.heading || scrape.site_name;
+            const para = hero.paragraphs[0] ?? "";
+            scrapedDescription = para
+              ? `${heading}. ${para}`.slice(0, 500)
+              : (heading || null);
+          }
+        }
+
         const profileFields = {
           biz_name: p?.biz_name || scrape.site_name || null,
+          description: scrapedDescription,
+          email: scrapedEmail,
           phone: p?.phone ?? null,
           address: p?.address ?? null,
           city: p?.city ?? null,

@@ -313,6 +313,17 @@ export const BLOCK_CSS = `
 .block-hero--dark .block-hero__sub,
 .block-hero--image .block-hero__sub { color: rgba(255,255,255,0.75); }
 .block-hero__actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+@media (min-width: 900px) {
+  .block-hero { min-height: 80vh; }
+  .block-hero--media { min-height: 85vh; }
+}
+@media (max-width: 768px) {
+  .block-hero { min-height: 60vh; padding: 6rem 0 4rem; align-items: flex-start; }
+  .block-hero__content { max-width: 100%; }
+  .block-hero__sub { font-size: 1rem; margin: 1rem 0 1.75rem; }
+  .block-hero__actions .btn-primary,
+  .block-hero__actions .btn-secondary { width: 100%; justify-content: center; }
+}
 
 /* ── features ── */
 .block-features { background: var(--color-bg); }

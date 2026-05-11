@@ -17,7 +17,7 @@ const PADDING_MAP: Record<Theme["spacing"]["section_padding"], string> = {
 const SCALE_MAP = {
   normal: { h1: "clamp(2rem, 5vw, 3.5rem)", h2: "clamp(1.5rem, 3.5vw, 2.5rem)", h3: "clamp(1.25rem, 2.5vw, 1.75rem)" },
   large:  { h1: "clamp(2.5rem, 5.5vw, 4.5rem)", h2: "clamp(1.75rem, 4vw, 3.25rem)", h3: "clamp(1.25rem, 2.5vw, 2rem)" },
-  xl:     { h1: "clamp(3rem, 8vw, 7rem)", h2: "clamp(2rem, 5.5vw, 5rem)", h3: "clamp(1.5rem, 3vw, 2.5rem)" },
+  xl:     { h1: "clamp(2.5rem, 6vw + 1rem, 7rem)", h2: "clamp(1.75rem, 4vw + 0.5rem, 5rem)", h3: "clamp(1.25rem, 2.5vw, 2.5rem)" },
 };
 
 function hexLuminance(hex: string): number {

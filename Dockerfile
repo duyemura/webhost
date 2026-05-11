@@ -15,7 +15,7 @@ RUN echo "//npm.pkg.github.com/:_authToken=${NPM_GITHUB_TOKEN}" > /root/.npmrc \
 
 # Copy source and build
 COPY . .
-RUN pnpm build && pnpm build:web
+RUN pnpm build && pnpm build:web && cp -r src/templates dist/templates
 
 EXPOSE 3000
 CMD ["node", "dist/server.js"]

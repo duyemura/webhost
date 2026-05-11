@@ -73,14 +73,12 @@ export function buildNav(
     }
   }
 
-  // CTA: first contact-like page, or /contact fallback
-  const ctaPage = spec.pages.find(p => /^contact/.test(p.slug));
+  // CTA: always present — contact page if available, otherwise first non-index page
+  const ctaPage = spec.pages.find(p => /^contact/.test(p.slug))
+    ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p));
   const ctaHref = ctaPage ? `/${ctaPage.slug}` : "/contact";
   const ctaLabel = ctaPage?.nav_label ?? "Get started";
-  const hasCtaPage = !!ctaPage || spec.pages.some(p => p.slug === "contact");
-  const ctaHtml = hasCtaPage
-    ? `<li class="site-nav__cta"><a href="${esc(ctaHref)}" class="btn-primary site-nav__cta-btn">${esc(ctaLabel)}</a></li>`
-    : "";
+  const ctaHtml = `<li class="site-nav__cta"><a href="${esc(ctaHref)}" class="site-nav__cta-btn">${esc(ctaLabel)}</a></li>`;
 
   // Clean up site name: strip SEO tails like "- Gym in Denver"
   const cleanName = siteName
@@ -94,10 +92,10 @@ export function buildNav(
   return `<nav class="site-nav" id="site-nav">
   <div class="container site-nav__inner">
     <a href="/" class="site-nav__logo" aria-label="${esc(cleanName)}">${logoHtml}</a>
-    ${rendered.length > 0 ? `<ul class="site-nav__links">
+    <ul class="site-nav__links">
       ${rendered.join("\n      ")}
       ${ctaHtml}
-    </ul>` : ""}
+    </ul>
   </div>
 </nav>
 <script>

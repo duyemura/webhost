@@ -120,16 +120,31 @@ export const BLOCK_CSS = `
 }
 .site-nav__dropdown li a:hover,
 .site-nav__dropdown li a[aria-current="page"] { background: var(--color-muted); }
-/* CTA */
+/* CTA — always visible; white+dark over transparent hero, brand color when scrolled */
 .site-nav__cta { margin-left: 0.75rem; }
 .site-nav__cta-btn {
-  font-family: var(--font-heading) !important;
-  font-size: 0.75rem !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-  padding: 0.6rem 1.25rem !important;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius);
   white-space: nowrap;
+  text-decoration: none;
+  border: 2px solid transparent;
+  transition: background 0.2s, color 0.2s, opacity 0.15s;
+  /* Transparent nav: white button with dark text — readable over any hero */
+  background: #ffffff;
+  color: #111827;
+}
+.site-nav__cta-btn:hover { opacity: 0.88; }
+/* Scrolled nav: switch to brand primary */
+.site-nav--scrolled .site-nav__cta-btn {
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
 }
 @media (max-width: 900px) {
   .site-nav__links { display: none; }

@@ -123,7 +123,7 @@ function buildPageToolSchema(instructions: import("../lib/block-instructions.js"
     type: "object",
     required: ["title", "nav_label", "meta_description", "sections"],
     properties: {
-      title: { type: "string", description: "Full SEO page title (no site name suffix)" },
+      title: { type: "string", description: "Full SEO page title (no site name suffix). For the home page (slug 'index'), use the business name or a short brand tagline — never the hero headline." },
       nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words. Strip any city, state, or SEO decorators. 'CrossFit Classes in Denver, CO' → 'CrossFit'. 'About Our Gym in Kansas City' → 'About us'. 'Contact Us Today' → 'Contact'." },
       nav_group: { type: "string", description: "Optional dropdown group name. Set this to group related pages under a single nav dropdown. Example: all program pages get nav_group 'Programs'. Only set when 2+ pages share a clear category." },
       meta_description: { type: "string", description: "Max 160 chars" },
@@ -178,7 +178,7 @@ interface PageResult {
 async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
   const toolSchema = buildPageToolSchema(instructions);
   const userMessage = buildPageUserMessage(page, siteName, images);
-  const model = "claude-opus-4-7";
+  const model = "claude-sonnet-4-6";
   const maxTokens = 4000;
   const msgs = [{ role: "user" as const, content: userMessage }];
 

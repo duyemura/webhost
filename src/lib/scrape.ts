@@ -313,7 +313,7 @@ export async function scrapeWebsite(
   const navLinks = extractNavLinks(homeHtml, baseUrl);
   const toVisit = navLinks
     .filter(l => l !== baseUrl.href && l !== baseUrl.href + "/")
-    .slice(0, 5);
+    .slice(0, 10);
 
   if (toVisit.length > 0) {
     onEvent({ type: "discovered", urls: toVisit });

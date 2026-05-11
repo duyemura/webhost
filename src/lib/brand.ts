@@ -34,25 +34,30 @@ export const DEFAULT_BRAND_KIT: BrandKit = {
 };
 
 /**
- * Apply brand kit colors onto a theme preset.
+ * Apply brand kit onto a theme preset.
  *
- * Rules:
- * - Theme owns: typography (fonts, weight, transform, scale), shape, spacing.
- *   These reflect the user's structural/aesthetic choice — a "Bold" theme with
- *   Barlow Condensed uppercase shouldn't be overridden by whatever font the
- *   original site happened to use.
- * - Brand kit owns: primary action color and accent. These reflect the gym's
- *   actual brand identity.
- * - Background mode stays with the theme — "Dark" keeps its dark background
- *   even if the gym's site was light. The brand color shows up as the CTA/
- *   accent on that dark canvas.
- * - Structural neutrals (muted, border, surface) stay with the theme so they
- *   remain calibrated for the theme's background mode.
+ * What the theme owns (never overridden):
+ * - Typography structure: heading_weight, heading_transform, heading_scale,
+ *   heading_tracking — the style choices that define the theme's character.
+ *   "Bold" means 900-weight uppercase xl headings regardless of font family.
+ * - Background mode: dark themes keep their dark canvas; the brand color
+ *   appears as the CTA/accent on top of it.
+ * - Structural neutrals: muted, border, surface — calibrated for the
+ *   background mode.
+ *
+ * What the brand kit owns:
+ * - Primary action color, primary_foreground, accent — the gym's real brand.
+ * - Font families, when the brand has a real font preference (i.e. not the
+ *   generic Inter fallback). A serif-branded gym choosing "Bold" should get
+ *   bold structure with their serif face, not Barlow Condensed.
  */
 export function applyBrandKitToTheme(
   theme: import("../blocks/types.js").Theme,
   brandKit: BrandKit,
 ): import("../blocks/types.js").Theme {
+  const hasBrandHeadingFont = brandKit.heading_font && brandKit.heading_font !== DEFAULT_BRAND_KIT.heading_font;
+  const hasBrandBodyFont = brandKit.body_font && brandKit.body_font !== DEFAULT_BRAND_KIT.body_font;
+
   return {
     ...theme,
     colors: {
@@ -61,7 +66,14 @@ export function applyBrandKitToTheme(
       primary_foreground: brandKit.primary_foreground,
       accent: brandKit.accent,
     },
-    // Typography stays exactly as the theme defines it.
+    typography: {
+      ...theme.typography,
+      // Font families come from the brand when a real brand font was found.
+      // Structural choices (weight, transform, scale, tracking) always stay
+      // with the theme — they define the aesthetic, not the font.
+      ...(hasBrandHeadingFont ? { heading_font: brandKit.heading_font } : {}),
+      ...(hasBrandBodyFont ? { body_font: brandKit.body_font } : {}),
+    },
   };
 }
 

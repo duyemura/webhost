@@ -144,7 +144,7 @@ export const BLOCK_CSS = `
 }
 .site-nav__dropdown li a:hover,
 .site-nav__dropdown li a[aria-current="page"] { background: var(--color-muted); }
-/* CTA — always visible; white+dark over transparent hero, brand color when scrolled */
+/* CTA — always visible */
 .site-nav__cta { margin-left: 0.75rem; }
 .site-nav__cta-btn {
   display: inline-flex;
@@ -159,16 +159,16 @@ export const BLOCK_CSS = `
   white-space: nowrap;
   text-decoration: none;
   border: 2px solid transparent;
-  transition: background 0.2s, color 0.2s, opacity 0.15s;
-  /* Transparent nav: white button with dark text — readable over any hero */
-  background: #ffffff;
-  color: #111827;
-}
-.site-nav__cta-btn:hover { opacity: 0.88; }
-/* Scrolled nav: switch to brand primary */
-.site-nav--scrolled .site-nav__cta-btn {
+  transition: background 0.2s, color 0.2s, border-color 0.2s, opacity 0.15s;
   background: var(--color-primary);
   color: var(--color-primary-fg);
+}
+.site-nav__cta-btn:hover { opacity: 0.88; }
+/* Transparent nav (over hero): outlined white so it reads on dark backgrounds */
+:not(.site-nav--scrolled) .site-nav__cta-btn {
+  background: transparent;
+  color: #ffffff;
+  border-color: rgba(255,255,255,0.75);
 }
 @media (max-width: 900px) {
   .site-nav__links { display: none; }

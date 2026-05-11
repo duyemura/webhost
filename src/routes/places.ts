@@ -163,6 +163,9 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
     const p = await resRelevant.json() as Record<string, unknown>;
 
     // Merge reviews from both calls, deduplicate by author+text, keep 4+ stars
+    if (!resNewest.ok) {
+      app.log.warn({ status: resNewest.status }, "places newest-reviews fetch failed, falling back to relevant-only");
+    }
     const newestReviews = resNewest.ok ? parseReviews((await resNewest.json() as Record<string, unknown>).reviews) : [];
     const relevantReviews = parseReviews(p.reviews);
     const seen = new Set<string>();

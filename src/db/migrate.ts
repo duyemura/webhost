@@ -158,13 +158,22 @@ const sql = `
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS site_quality_signals_site_id_idx ON site_quality_signals(site_id);
-  CREATE INDEX IF NOT EXISTS site_quality_signals_cost_event_id_idx ON site_quality_signals(cost_event_id);
 
   -- Migrate legacy ai_call_id FK → cost_event_id, then drop ai_calls
+  -- Guarded so it runs on existing DBs without breaking fresh installs
   ALTER TABLE site_quality_signals ADD COLUMN IF NOT EXISTS cost_event_id UUID REFERENCES cost_events(id) ON DELETE SET NULL;
-  UPDATE site_quality_signals SET cost_event_id = ai_call_id WHERE ai_call_id IS NOT NULL AND cost_event_id IS NULL;
-  ALTER TABLE site_quality_signals DROP COLUMN IF EXISTS ai_call_id;
+  DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'site_quality_signals' AND column_name = 'ai_call_id'
+    ) THEN
+      UPDATE site_quality_signals SET cost_event_id = ai_call_id WHERE ai_call_id IS NOT NULL AND cost_event_id IS NULL;
+      ALTER TABLE site_quality_signals DROP COLUMN ai_call_id;
+    END IF;
+  END $$;
   DROP TABLE IF EXISTS ai_calls;
+  CREATE INDEX IF NOT EXISTS site_quality_signals_cost_event_id_idx ON site_quality_signals(cost_event_id);
 
   -- Phase 10: Block-level generation instruction store (no code deploy to update)
   CREATE TABLE IF NOT EXISTS block_instructions (

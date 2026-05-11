@@ -831,28 +831,28 @@ export const BLOCK_CSS = `
   background: var(--color-primary);
   color: var(--color-primary-fg);
   overflow: hidden;
-  padding: 1rem 0;
+  padding: 1.5rem 0;
 }
 .block-marquee__track {
   display: flex;
   width: max-content;
-  animation: di-marquee var(--marquee-duration, 28s) linear infinite;
+  animation: di-marquee var(--marquee-duration, 60s) linear infinite;
 }
 .block-marquee__item {
   display: inline-flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 2rem;
   font-family: var(--font-heading);
-  font-size: 0.875rem;
+  font-size: 1.125rem;
   font-weight: var(--font-heading-weight);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 0 1.5rem;
+  padding: 0 2rem;
   white-space: nowrap;
 }
 .block-marquee__item::after {
   content: '✦';
-  font-size: 0.5rem;
+  font-size: 0.65rem;
   opacity: 0.75;
 }
 @keyframes di-marquee {

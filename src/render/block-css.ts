@@ -11,6 +11,7 @@ export const BLOCK_CSS = `
   --color-muted-fg: rgba(249,250,251,0.65);
   --color-border: rgba(249,250,251,0.12);
   --color-primary-fg: #ffffff;
+  color: var(--color-fg);
 }
 .section-bg--primary {
   --color-bg: var(--color-primary);
@@ -18,6 +19,7 @@ export const BLOCK_CSS = `
   --color-fg: var(--color-primary-fg);
   --color-muted-fg: rgba(255,255,255,0.75);
   --color-border: rgba(255,255,255,0.2);
+  color: var(--color-fg);
 }
 
 /* ── nav ── */

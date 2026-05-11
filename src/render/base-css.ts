@@ -33,7 +33,7 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: var(--heading-tracking);
   text-transform: var(--heading-transform);
   line-height: 1.2;
-  color: inherit;
+  color: var(--color-fg);
 }
 
 h1 { font-size: var(--h1-size); }

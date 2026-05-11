@@ -136,6 +136,18 @@ const sql = `
   );
   CREATE INDEX IF NOT EXISTS site_quality_signals_site_id_idx ON site_quality_signals(site_id);
   CREATE INDEX IF NOT EXISTS site_quality_signals_ai_call_id_idx ON site_quality_signals(ai_call_id);
+
+  -- Phase 10: Block-level generation instruction store (no code deploy to update)
+  CREATE TABLE IF NOT EXISTS block_instructions (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    block_type  TEXT,            -- null = applies to all blocks
+    field_name  TEXT,            -- null = block-level instruction (not field-specific)
+    instruction TEXT NOT NULL,
+    active      BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS block_instructions_block_type_idx ON block_instructions(block_type) WHERE active = true;
 `;
 
 const client = new pg.Client(config.db);

@@ -22,7 +22,7 @@ export const teamBlock: BlockDefinition = {
     type: "team",
     fields: {
       headline: "string (optional)",
-      members: "Array<{ name, role?, bio?, photo_url? }> (1–12)",
+      members: "Array<{ name, role?, bio?, photo_url? }> (1–12). For photo_url: use a downloaded asset URL if the alt text contains the person's name or words like 'coach', 'trainer', 'staff'. Leave empty if no matching image was downloaded.",
     },
   },
 };

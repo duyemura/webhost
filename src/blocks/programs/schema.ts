@@ -27,7 +27,7 @@ export const programsBlock: BlockDefinition = {
       eyebrow: "string (optional)",
       headline: "string (optional, use \\n for line breaks)",
       subheadline: "string (optional, body text shown right of headline in dark-industrial)",
-      items: "Array<{ name, description, image_url?: string, tag?, cta?: { text, url } }> (1–9 items; set image_url to a downloaded image URL when one is available for that program)",
+      items: "Array<{ name, description, image_url?: string, tag?, cta?: { text, url } }> (1–9 items). For image_url: use a downloaded asset URL from the Downloaded images list. Match by alt text or section hint to the relevant program. If multiple images exist, distribute one per item. If only one image exists, assign it to the most prominent item. Leave image_url omitted only if no downloaded images are available at all.",
     },
   },
 };

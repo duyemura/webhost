@@ -20,7 +20,7 @@ export const galleryBlock: BlockDefinition = {
     type: "gallery",
     fields: {
       headline: "string (optional)",
-      images: "Array<{ url, alt? }> (1–18)",
+      images: "Array<{ url: string, alt?: string }> (1–18) — populate EVERY entry with a real URL from the Downloaded images list. Use all available downloaded images for this page. If fewer than 1 downloaded image exists, do NOT include a gallery block at all.",
     },
   },
 };

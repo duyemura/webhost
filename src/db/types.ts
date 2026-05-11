@@ -8,6 +8,7 @@ export interface Database {
   assets: AssetsTable;
   ai_calls: AiCallsTable;
   site_quality_signals: SiteQualitySignalsTable;
+  block_instructions: BlockInstructionsTable;
 }
 
 export interface UsersTable {
@@ -142,3 +143,16 @@ export interface SiteQualitySignalsTable {
 
 export type SiteQualitySignal = Selectable<SiteQualitySignalsTable>;
 export type NewSiteQualitySignal = Insertable<SiteQualitySignalsTable>;
+
+export interface BlockInstructionsTable {
+  id: Generated<string>;
+  block_type: string | null;
+  field_name: string | null;
+  instruction: string;
+  active: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type BlockInstruction = Selectable<BlockInstructionsTable>;
+export type NewBlockInstruction = Insertable<BlockInstructionsTable>;

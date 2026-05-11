@@ -11,6 +11,7 @@ import type { ScrapeResult, ScrapedPage } from "../lib/scrape.js";
 import { extractBrandSignals, extractBrandKit, downloadSiteImage } from "../lib/brand.js";
 import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
 import { logAiCall } from "../lib/ai-logger.js";
+import { fetchInstructions, mergeInstructions } from "../lib/block-instructions.js";
 
 const gmbProfileSchema = z.object({
   biz_name: z.string().max(200).optional(),
@@ -40,7 +41,12 @@ Guidelines:
 - Each section needs a unique string "id" field (short descriptive IDs like "hero1", "about1").
 - Write a short meta_description (max 160 chars) that describes the page.
 - In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
-- Images: if the user message includes "Downloaded images", use those asset URLs directly in image fields (image_url, background.value, items[].image_url, etc). Match each image to the section it came from. Prefer real images over leaving image fields empty.`;
+- Images: if the user message includes a "Downloaded images" list, those are real asset URLs — USE THEM. Rules:
+  1. Hero background: set background: { style: 'image', value: '<url>' } — never leave a hero imageless if an image was downloaded from the header/hero area.
+  2. Gallery: populate every images[] entry with a downloaded URL. If no downloaded images exist for this page, omit the gallery block.
+  3. Programs/Team/About: assign downloaded images to items using alt text or section hint for matching. Distribute images across items when multiple exist.
+  4. NEVER invent image URLs. Only use URLs from the Downloaded images list, or leave the field empty.
+  5. A section marked [source: css background] is typically a hero or banner — use its URL in the hero background field.`;
 
 export interface DownloadedImage {
   assetUrl: string;
@@ -86,19 +92,25 @@ function buildPageUserMessage(page: ScrapedPage, siteName: string, images: Downl
   return lines.join("\n");
 }
 
-function buildPageToolSchema(): object {
+async function buildPageToolSchema(): Promise<object> {
   const sectionTypes = registry.getTypes();
-  const aiSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
+  const rawSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
+
+  const { global: globalInstructions, byBlock } = await fetchInstructions();
 
   const sectionDescriptions = sectionTypes
     .map(type => {
-      const schema = aiSchemas[type];
-      const fields = schema?.fields
-        ? Object.entries(schema.fields).map(([k, v]) => `    ${k}: ${v}`).join("\n")
-        : "";
+      const raw = rawSchemas[type];
+      if (!raw) return `  ${type}:`;
+      const merged = mergeInstructions(raw, byBlock);
+      const fields = Object.entries(merged.fields).map(([k, v]) => `    ${k}: ${v}`).join("\n");
       return `  ${type}:\n${fields}`;
     })
     .join("\n\n");
+
+  const globalNote = globalInstructions.length
+    ? `\n\nAdditional generation rules:\n${globalInstructions.map(i => `- ${i}`).join("\n")}`
+    : "";
 
   return {
     type: "object",
@@ -110,7 +122,7 @@ function buildPageToolSchema(): object {
       meta_description: { type: "string", description: "Max 160 chars" },
       sections: {
         type: "array",
-        description: `Each section accepts an optional "bg" field:\n- "default" — brand background (white/light)\n- "muted" — light gray; use for every other section to break up the page\n- "dark" — near-black; use for 1–2 high-impact sections (CTA, stats, location)\n- "primary" — brand color; use for at most 1 section per page\nDo NOT leave every section as default — the page will look flat. Alternate muted/default at minimum.\n\nAvailable block types:\n${sectionDescriptions}`,
+        description: `Each section accepts an optional "bg" field:\n- "default" — brand background (white/light)\n- "muted" — light gray; use for every other section to break up the page\n- "dark" — near-black; use for 1–2 high-impact sections (CTA, stats, location)\n- "primary" — brand color; use for at most 1 section per page\nDo NOT leave every section as default — the page will look flat. Alternate muted/default at minimum.\n\nAvailable block types:\n${sectionDescriptions}${globalNote}`,
         items: {
           type: "object",
           required: ["id", "type"],
@@ -157,7 +169,7 @@ interface PageResult {
 }
 
 async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], siteId?: string): Promise<PageResult & { aiCallId: string | null }> {
-  const toolSchema = buildPageToolSchema();
+  const toolSchema = await buildPageToolSchema();
   const userMessage = buildPageUserMessage(page, siteName, images);
   const model = "claude-opus-4-7";
   const maxTokens = 4000;

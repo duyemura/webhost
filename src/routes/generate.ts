@@ -8,6 +8,7 @@ import { THEME_PRESETS } from "../render/theme-presets.js";
 import { DEFAULT_THEME } from "../blocks/types.js";
 import type { BusinessProfile } from "../db/types.js";
 import { logAiCall } from "../lib/ai-logger.js";
+import { fetchInstructions, mergeInstructions } from "../lib/block-instructions.js";
 
 const bodySchema = z.object({
   prompt: z.string().min(1).max(2000),
@@ -51,19 +52,25 @@ function buildUserMessage(prompt: string, profile: BusinessProfile | null): stri
   return lines.join("\n");
 }
 
-function buildInputSchema(): object {
+async function buildInputSchema(): Promise<object> {
   const sectionTypes = registry.getTypes();
-  const aiSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
+  const rawSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
+
+  const { global: globalInstructions, byBlock } = await fetchInstructions();
 
   const sectionDescriptions = sectionTypes
     .map(type => {
-      const schema = aiSchemas[type];
-      const fields = schema?.fields
-        ? Object.entries(schema.fields).map(([k, v]) => `    ${k}: ${v}`).join("\n")
-        : "";
+      const raw = rawSchemas[type];
+      if (!raw) return `  ${type}:`;
+      const merged = mergeInstructions(raw, byBlock);
+      const fields = Object.entries(merged.fields).map(([k, v]) => `    ${k}: ${v}`).join("\n");
       return `  ${type}:\n${fields}`;
     })
     .join("\n\n");
+
+  const globalNote = globalInstructions.length
+    ? `\n\nAdditional generation rules:\n${globalInstructions.map(i => `- ${i}`).join("\n")}`
+    : "";
 
   return {
     type: "object",
@@ -83,7 +90,7 @@ function buildInputSchema(): object {
             meta_description: { type: "string", description: "Meta description for SEO, max 160 chars" },
             sections: {
               type: "array",
-              description: `Array of section objects. Each must have 'id' (unique string) and 'type' (one of: ${sectionTypes.join(", ")}).\n\nEach section accepts an optional "bg" field:\n- "default" — brand background (white/light)\n- "muted" — light gray; alternate with default to break up the page\n- "dark" — near-black; 1–2 high-impact sections per page (CTA, stats, intro offer)\n- "primary" — brand color; at most 1 section per page\nDo NOT leave every section as default — alternate muted/default at minimum.\n\nAvailable block types and their fields:\n${sectionDescriptions}`,
+              description: `Array of section objects. Each must have 'id' (unique string) and 'type' (one of: ${sectionTypes.join(", ")}).\n\nEach section accepts an optional "bg" field:\n- "default" — brand background (white/light)\n- "muted" — light gray; alternate with default to break up the page\n- "dark" — near-black; 1–2 high-impact sections per page (CTA, stats, intro offer)\n- "primary" — brand color; at most 1 section per page\nDo NOT leave every section as default — alternate muted/default at minimum.\n\nAvailable block types and their fields:\n${sectionDescriptions}${globalNote}`,
               items: {
                 type: "object",
                 required: ["id", "type"],
@@ -133,7 +140,7 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
       .executeTakeFirst();
 
     const userMessage = buildUserMessage(body.data.prompt, profile ?? null);
-    const inputSchema = buildInputSchema();
+    const inputSchema = await buildInputSchema();
 
     let specData: unknown;
     try {

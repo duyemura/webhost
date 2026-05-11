@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../db/client.js";
+import { registry } from "../blocks/index.js";
 
 const signalBodySchema = z.object({
   ai_call_id: z.string().uuid().nullable().optional(),
@@ -111,5 +112,71 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
       .execute();
 
     return calls;
+  });
+
+  // ── Block instruction store (system-level — admin only for now) ──────────────
+
+  const instructionBodySchema = z.object({
+    block_type: z.string().nullable().optional(),
+    field_name: z.string().nullable().optional(),
+    instruction: z.string().min(1).max(2000),
+    active: z.boolean().optional(),
+  });
+
+  // GET /api/block-instructions — list all instructions + available block types
+  app.get("/api/block-instructions", async (_req, reply) => {
+    const [instructions, blockTypes] = await Promise.all([
+      db.selectFrom("block_instructions")
+        .selectAll()
+        .orderBy("block_type", "asc")
+        .orderBy("field_name", "asc")
+        .orderBy("created_at", "asc")
+        .execute(),
+      Promise.resolve(registry.getTypes()),
+    ]);
+    return { instructions, block_types: blockTypes };
+  });
+
+  // POST /api/block-instructions — add a new instruction
+  app.post("/api/block-instructions", async (req, reply) => {
+    const body = instructionBodySchema.safeParse(req.body);
+    if (!body.success) return reply.badRequest(body.error.issues.map(i => i.message).join("; "));
+
+    const row = await db
+      .insertInto("block_instructions")
+      .values({
+        block_type: body.data.block_type ?? null,
+        field_name: body.data.field_name ?? null,
+        instruction: body.data.instruction,
+        active: body.data.active ?? true,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return row;
+  });
+
+  // PATCH /api/block-instructions/:id — update instruction or toggle active
+  app.patch("/api/block-instructions/:instrId", async (req, reply) => {
+    const { instrId } = req.params as { instrId: string };
+    const body = instructionBodySchema.partial().safeParse(req.body);
+    if (!body.success) return reply.badRequest(body.error.issues.map(i => i.message).join("; "));
+
+    const row = await db
+      .updateTable("block_instructions")
+      .set({ ...body.data, updated_at: new Date() })
+      .where("id", "=", instrId)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!row) return reply.notFound();
+    return row;
+  });
+
+  // DELETE /api/block-instructions/:id
+  app.delete("/api/block-instructions/:instrId", async (req, reply) => {
+    const { instrId } = req.params as { instrId: string };
+    await db.deleteFrom("block_instructions").where("id", "=", instrId).execute();
+    return reply.code(204).send();
   });
 };

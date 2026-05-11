@@ -38,6 +38,7 @@ export interface SitePage {
   slug: string;
   title: string;
   nav_label?: string;
+  nav_group?: string;
   meta_description: string;
   sections: SiteSection[];
 }

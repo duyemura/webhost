@@ -21,7 +21,7 @@ export const aboutBlock: BlockDefinition = {
     fields: {
       headline: "string (optional)",
       body: "string (required, up to 2000 chars)",
-      image_url: "string (optional)",
+      image_url: "string (optional) — use a downloaded asset URL from the Downloaded images list if one is available. Prefer photos of the gym, team, or facility.",
       cta: "{ text, url } (optional)",
       image_position: "'left' | 'right' (optional, default 'right')",
     },

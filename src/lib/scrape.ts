@@ -309,10 +309,12 @@ export async function scrapeWebsite(
   const pages: [ScrapedPage, ...ScrapedPage[]] = [homePage];
   onEvent({ type: "page_done", url: baseUrl.href, title: homeTitle, sections: homeSections.length });
 
-  // Discover nav links
+  // Discover nav links — skip blog/news/post feeds (individual posts can't be rebuilt as static blocks)
+  const SKIP_PATH_RE = /\/(blog|news|articles?|posts?|press|updates?)(\/|$)/i;
   const navLinks = extractNavLinks(homeHtml, baseUrl);
   const toVisit = navLinks
     .filter(l => l !== baseUrl.href && l !== baseUrl.href + "/")
+    .filter(l => !SKIP_PATH_RE.test(new URL(l).pathname))
     .slice(0, 20);
 
   if (toVisit.length > 0) {

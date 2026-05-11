@@ -49,8 +49,10 @@ Guidelines:
 - Each section needs a unique string "id" field (short descriptive IDs like "hero1", "about1").
 - Write a short meta_description (max 160 chars) that describes the page.
 - In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
+- Contact pages: always generate a simple contact-form block (type: "contact-form") with fields for name, email, phone (optional), and message. Do not attempt to replicate embedded third-party form widgets.
+- If the page appears to be a blog index or individual blog post, map it as a single rich-text block with a brief placeholder noting the blog will be managed separately.
 - Images: if the user message includes a "Downloaded images" list, those are real asset URLs — USE THEM. Rules:
-  1. Hero background: set background: { style: 'image', value: '<url>' } — never leave a hero imageless if an image was downloaded from the header/hero area.
+  1. Hero background: ONLY set a background image if a downloaded image is explicitly from the hero/header area (source: hero, header, or css background). Do NOT assign a random image to the hero just because images were downloaded. Leave hero background empty if no hero-specific image is available.
   2. Gallery: populate every images[] entry with a downloaded URL. If no downloaded images exist for this page, omit the gallery block.
   3. Programs/Team/About: assign downloaded images to items using alt text or section hint for matching. Distribute images across items when multiple exist.
   4. NEVER invent image URLs. Only use URLs from the Downloaded images list, or leave the field empty.
@@ -76,7 +78,14 @@ interface GmbFacts {
   gmb_reviews?: { author: string; rating: number; text: string }[] | null;
 }
 
-function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[], gmb?: GmbFacts): string {
+interface BrandContext {
+  tone?: string | null;
+  primary_icp?: string | null;
+  secondary_icp?: string | null;
+  positioning?: string | null;
+}
+
+function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[], gmb?: GmbFacts, brand?: BrandContext): string {
   const lines: string[] = [
     `Site: ${siteName}`,
     `Page: ${page.title || page.slug}`,
@@ -103,6 +112,16 @@ function buildPageUserMessage(page: ScrapedPage, siteName: string, images: Downl
       }
     }
     lines.push("Use {{business.name}}, {{business.phone}}, {{business.address}}, {{business.hours}}, {{business.city}}, {{business.state}} tokens for personalizable fields.");
+    lines.push("");
+  }
+
+  // Brand voice + audience context — shapes how copy is written
+  if (brand && (brand.tone || brand.primary_icp || brand.positioning)) {
+    lines.push("Brand context (use this to shape copy tone and audience targeting):");
+    if (brand.tone) lines.push(`  Tone: ${brand.tone}`);
+    if (brand.positioning) lines.push(`  Positioning: ${brand.positioning}`);
+    if (brand.primary_icp) lines.push(`  Primary audience: ${brand.primary_icp}`);
+    if (brand.secondary_icp) lines.push(`  Secondary audience: ${brand.secondary_icp}`);
     lines.push("");
   }
 
@@ -209,9 +228,9 @@ interface PageResult {
   costEventId: string | null;
 }
 
-async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
+async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, brand?: BrandContext, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
   const toolSchema = buildPageToolSchema(instructions);
-  const userMessage = buildPageUserMessage(page, siteName, images, gmb);
+  const userMessage = buildPageUserMessage(page, siteName, images, gmb, brand);
   const model = "claude-sonnet-4-6";
   const maxTokens = 4000;
   const msgs = [{ role: "user" as const, content: userMessage }];
@@ -397,7 +416,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
         let result: PageResult;
         try {
-          result = await processPage(page, slug, scrape.site_name, downloadedImages, instructions, body.data.gmb_profile, id);
+          result = await processPage(page, slug, scrape.site_name, downloadedImages, instructions, body.data.gmb_profile, brandKit ?? undefined, id);
         } finally {
           clearInterval(heartbeat);
         }

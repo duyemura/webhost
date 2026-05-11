@@ -16,6 +16,7 @@ import { mapLocationBlock } from "./map-location/schema.js";
 import { richTextBlock } from "./rich-text/schema.js";
 import { ctaBannerBlock } from "./cta-banner/schema.js";
 import { marqueeBlock } from "./marquee/schema.js";
+import { contactFormBlock } from "./contact-form/schema.js";
 
 registry.register(heroBlock);
 registry.register(featuresBlock);
@@ -34,5 +35,6 @@ registry.register(mapLocationBlock);
 registry.register(richTextBlock);
 registry.register(ctaBannerBlock);
 registry.register(marqueeBlock);
+registry.register(contactFormBlock);
 
 export { registry };

@@ -18,6 +18,10 @@ export interface BrandKit {
   accent: string;
   heading_font: string;
   body_font: string;
+  tone: string | null;
+  primary_icp: string | null;
+  secondary_icp: string | null;
+  positioning: string | null;
 }
 
 export const DEFAULT_BRAND_KIT: BrandKit = {
@@ -31,6 +35,10 @@ export const DEFAULT_BRAND_KIT: BrandKit = {
   accent: "#111827",
   heading_font: "Inter",
   body_font: "Inter",
+  tone: null,
+  primary_icp: null,
+  secondary_icp: null,
+  positioning: null,
 };
 
 /**
@@ -86,6 +94,7 @@ interface BrandSignals {
   hero_style_colors: string[];
   google_fonts: string[];       // font family names found in Google Fonts <link> tags
   css_font_families: string[];  // font-family values found in :root / body CSS rules
+  hero_copy: string[];          // headlines and taglines from hero/header for tone/ICP inference
   site_name: string;
   base_url: string;
 }
@@ -189,6 +198,13 @@ export function extractBrandSignals(homeHtml: string, baseUrl: string, siteName:
     }
   });
 
+  // Extract hero/header headings and taglines for tone + ICP inference
+  const heroCopy: string[] = [];
+  $("header h1, header h2, header p, [class*='hero'] h1, [class*='hero'] h2, [class*='hero'] p, [class*='banner'] h1, [class*='banner'] h2").each((_, el) => {
+    const text = $(el).text().trim();
+    if (text.length > 5 && text.length < 300) heroCopy.push(text);
+  });
+
   return {
     theme_color,
     ms_tile_color,
@@ -198,6 +214,7 @@ export function extractBrandSignals(homeHtml: string, baseUrl: string, siteName:
     hero_style_colors: [...new Set(heroStyleColors)].slice(0, 12),
     google_fonts: googleFonts.slice(0, 5),
     css_font_families: cssFontFamilies.slice(0, 5),
+    hero_copy: [...new Set(heroCopy)].slice(0, 8),
     site_name: siteName,
     base_url: baseUrl,
   };
@@ -257,7 +274,7 @@ export function downloadSiteImage(imageUrl: string, siteId: string): Promise<str
   return downloadImageAsset(imageUrl, siteId, "img", SITE_IMAGE_MIMES);
 }
 
-const BRAND_SYSTEM_PROMPT = `You are a brand designer. Given brand signals extracted from a website, suggest a brand kit.
+const BRAND_SYSTEM_PROMPT = `You are a brand strategist and designer. Given brand signals extracted from a website, return a brand kit.
 
 Return a JSON object with exactly these fields:
 {
@@ -269,7 +286,11 @@ Return a JSON object with exactly these fields:
   "accent": "#hex",               // highlight/accent color (can equal primary)
   "heading_font": "Font Name or null",  // Google Fonts name ONLY if found in the font signals — otherwise null
   "body_font": "Font Name or null",     // Google Fonts name ONLY if found in the font signals — otherwise null
-  "logo_url": "url or null"       // pick the best logo URL from candidates, or null
+  "logo_url": "url or null",      // pick the best logo URL from candidates, or null
+  "tone": "string or null",       // writing tone: e.g. "energetic, motivational, community-focused" — infer from site copy
+  "primary_icp": "string or null", // primary ideal customer profile: who is the #1 target customer? (e.g. "Busy professionals 30–45 seeking structured fitness and accountability")
+  "secondary_icp": "string or null", // secondary ICP if clearly present (e.g. "College athletes and young adults looking for competitive training") — null if not evident
+  "positioning": "string or null" // 1–2 sentence positioning statement: what makes this business distinct and what promise do they make? Infer from hero copy, taglines, and page headings.
 }
 
 Rules:
@@ -279,6 +300,8 @@ Rules:
   font-family signals. If no fonts were found, return null — do NOT guess or invent a font name.
 - When fonts are found, the value must be an exact Google Fonts family name (e.g. "Montserrat")
 - primary_foreground must be readable on the primary background (#fff or #000 or near)
+- tone / primary_icp / secondary_icp / positioning: infer from the homepage copy snippets provided.
+  If there is not enough copy to infer, return null — do not hallucinate.
 - Return ONLY valid JSON, no markdown, no explanation`;
 
 const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
@@ -313,13 +336,15 @@ Brand signals found:
 - Logo image candidates (in order of likelihood): ${signals.logo_candidates.length > 0 ? signals.logo_candidates.join("\n  ") : "none"}
 - Favicon: ${signals.favicon_url ?? "none"}
 - Google Fonts loaded: ${signals.google_fonts.length > 0 ? signals.google_fonts.join(", ") : "none"}
-- CSS font-family in :root/body: ${signals.css_font_families.length > 0 ? signals.css_font_families.join(", ") : "none"}`;
+- CSS font-family in :root/body: ${signals.css_font_families.length > 0 ? signals.css_font_families.join(", ") : "none"}
+- Hero/header copy (for tone + ICP inference):
+${signals.hero_copy.length > 0 ? signals.hero_copy.map(c => `  "${c}"`).join("\n") : "  (none found)"}`;
 
   let kit: BrandKit = { ...DEFAULT_BRAND_KIT };
 
   try {
     const model = "claude-haiku-4-5-20251001";
-    const maxTokens = 500;
+    const maxTokens = 800;
     const msgs = [{ role: "user" as const, content: prompt }];
     const t0 = Date.now();
     const msg = await anthropic.messages.create({
@@ -340,7 +365,7 @@ Brand signals found:
     });
 
     const text = msg.content.find(c => c.type === "text")?.text ?? "";
-    const json = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as Partial<BrandKit & { logo_url: string } & { heading_font: string | null; body_font: string | null }>;
+    const json = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as Partial<BrandKit & { logo_url: string }>;
 
     kit = sanitizeBrandKit({
       logo_url: null,
@@ -355,6 +380,10 @@ Brand signals found:
       // applyBrandKitToTheme treats it as "no brand font, use theme font"
       heading_font: json.heading_font ?? DEFAULT_BRAND_KIT.heading_font,
       body_font: json.body_font ?? DEFAULT_BRAND_KIT.body_font,
+      tone: typeof json.tone === "string" && json.tone.length > 0 ? json.tone : null,
+      primary_icp: typeof json.primary_icp === "string" && json.primary_icp.length > 0 ? json.primary_icp : null,
+      secondary_icp: typeof json.secondary_icp === "string" && json.secondary_icp.length > 0 ? json.secondary_icp : null,
+      positioning: typeof json.positioning === "string" && json.positioning.length > 0 ? json.positioning : null,
     });
 
     const [logoUrl, faviconUrl] = await Promise.all([

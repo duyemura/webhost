@@ -6,6 +6,7 @@ import { registry } from "../blocks/index.js";
 import { buildPage } from "./page.js";
 import { buildSocialProofBar } from "./social-proof.js";
 import { esc } from "./escape.js";
+import { interpolate } from "./interpolate.js";
 
 function applyBrandKit(theme: Theme, brandKit: BrandKit): Theme {
   return {
@@ -46,7 +47,7 @@ export async function renderSpecPage(
   const socialProofBar = buildSocialProofBar(profile);
   let socialProofInjected = false;
 
-  const sectionsHtml = page.sections
+  const sectionsHtml = interpolate(page.sections
     .map(s => {
       const html = registry.render(s, theme, profile);
       const bg = (s as Record<string, unknown>).bg as string | undefined;
@@ -60,7 +61,7 @@ export async function renderSpecPage(
       }
       return wrapped;
     })
-    .join("\n");
+    .join("\n"), profile);
 
   const faviconUrl = brandKit?.favicon_url ?? null;
   return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl });

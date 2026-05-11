@@ -732,30 +732,208 @@ function blockSummary(section: Record<string, unknown>): string {
   return String(section.type);
 }
 
+interface PageChatMsg {
+  role: "user" | "assistant";
+  content: string;
+}
+
+function PageAccordionItem({
+  siteId,
+  page,
+  canRebuild,
+  anyBusy,
+  onSiteUpdated,
+  onRebuildStart,
+  onRebuildEnd,
+}: {
+  siteId: string;
+  page: { slug: string; title: string; nav_label?: string; sections: Record<string, unknown>[] };
+  canRebuild: boolean;
+  anyBusy: boolean;
+  onSiteUpdated: (site: Site) => void;
+  onRebuildStart: (slug: string) => void;
+  onRebuildEnd: (slug: string, error: string | null) => void;
+}): React.ReactElement {
+  const [isOpen, setIsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [messages, setMessages] = useState<PageChatMsg[]>([]);
+  const [isChatPending, setIsChatPending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [isRebuilding, setIsRebuilding] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  const displayName = page.nav_label || page.title;
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function handleRebuild() {
+    setIsRebuilding(true);
+    onRebuildStart(page.slug);
+    try {
+      const updated = await rebuildPage(siteId, page.slug);
+      onSiteUpdated(updated);
+      onRebuildEnd(page.slug, null);
+    } catch (err) {
+      onRebuildEnd(page.slug, (err as Error).message);
+    } finally {
+      setIsRebuilding(false);
+    }
+  }
+
+  async function handleSendChat() {
+    const trimmed = instruction.trim();
+    if (!trimmed || isChatPending) return;
+    setMessages(prev => [...prev, { role: "user", content: trimmed }]);
+    setInstruction("");
+    setIsChatPending(true);
+    setChatError(null);
+    try {
+      const updated = await aiEditPage(siteId, page.slug, trimmed);
+      onSiteUpdated(updated);
+      setMessages(prev => [...prev, { role: "assistant", content: "Done — check the preview to see your changes." }]);
+    } catch (err) {
+      const msg = (err as Error).message;
+      setChatError(msg);
+      setMessages(prev => [...prev, { role: "assistant", content: `Error: ${msg}` }]);
+    } finally {
+      setIsChatPending(false);
+    }
+  }
+
+  function handleChatKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void handleSendChat();
+    }
+  }
+
+  const isBusy = isRebuilding || isChatPending || anyBusy;
+
+  return (
+    <div className="tw-rounded-lg tw-border tw-border-border tw-overflow-hidden">
+      {/* Header row — always visible */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(v => !v)}
+        className="tw-w-full tw-flex tw-items-center tw-justify-between tw-px-4 tw-py-3 tw-bg-background hover:tw-bg-muted/40 tw-transition-colors tw-text-left"
+      >
+        <div className="tw-flex tw-items-center tw-gap-2 tw-min-w-0">
+          <span className="tw-text-sm tw-font-medium tw-text-foreground tw-truncate">{displayName}</span>
+          <span className="tw-text-xs tw-text-muted-foreground tw-shrink-0">{page.sections.length} blocks</span>
+        </div>
+        <span className="tw-text-muted-foreground tw-text-base tw-leading-none tw-shrink-0 tw-ml-3">
+          {isOpen ? "−" : "+"}
+        </span>
+      </button>
+
+      {/* Expanded body */}
+      {isOpen && (
+        <div className="tw-border-t tw-border-border">
+          {/* Block list */}
+          <div className="tw-px-4 tw-py-3 tw-space-y-0.5">
+            {page.sections.map(s => (
+              <p key={String(s.id)} className="tw-text-sm tw-text-foreground tw-flex tw-items-center tw-gap-1.5">
+                <span className="tw-text-muted-foreground tw-shrink-0">·</span>
+                <span className="tw-truncate">{blockSummary(s)}</span>
+              </p>
+            ))}
+          </div>
+
+          {/* Action row */}
+          <div className="tw-flex tw-gap-2 tw-px-4 tw-pb-3 tw-border-t tw-border-border tw-pt-3">
+            {canRebuild && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isBusy}
+                isSubmitting={isRebuilding}
+                onClick={() => void handleRebuild()}
+                className="tw-flex tw-items-center tw-gap-1.5"
+              >
+                <RefreshCw className="tw-h-3 tw-w-3" />
+                {isRebuilding ? "Rebuilding…" : "Rebuild page"}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isBusy && !chatOpen}
+              onClick={() => { setChatOpen(v => !v); }}
+              className="tw-flex tw-items-center tw-gap-1.5"
+            >
+              <Wand2 className="tw-h-3 tw-w-3" />
+              {chatOpen ? "Hide AI chat" : "Edit with AI"}
+            </Button>
+          </div>
+
+          {/* Inline AI chat */}
+          {chatOpen && (
+            <div className="tw-px-4 tw-pb-4 tw-space-y-3 tw-border-t tw-border-border tw-pt-3">
+              {messages.length > 0 && (
+                <div className="tw-rounded-md tw-border tw-border-border tw-bg-muted/30 tw-p-3 tw-space-y-2.5 tw-max-h-52 tw-overflow-y-auto">
+                  {messages.map((msg, i) => (
+                    <div key={i} className={`tw-flex ${msg.role === "user" ? "tw-justify-end" : "tw-justify-start"}`}>
+                      <div className={`tw-max-w-[90%] tw-rounded-lg tw-px-3 tw-py-2 tw-text-sm ${
+                        msg.role === "user"
+                          ? "tw-bg-primary tw-text-primary-foreground"
+                          : "tw-bg-background tw-border tw-border-border tw-text-foreground"
+                      }`}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isChatPending && (
+                    <div className="tw-flex tw-justify-start">
+                      <div className="tw-bg-background tw-border tw-border-border tw-rounded-lg tw-px-3 tw-py-2">
+                        <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+              )}
+              <Textarea
+                placeholder={`e.g. "Change the hero headline to focus on beginners" or "Rewrite pricing to emphasize value"`}
+                value={instruction}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInstruction(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                rows={2}
+                disabled={isChatPending}
+                className="tw-resize-none tw-text-sm"
+              />
+              {chatError && <p className="tw-text-xs tw-text-error">{chatError}</p>}
+              <div className="tw-flex tw-items-center tw-gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void handleSendChat()}
+                  disabled={!instruction.trim()}
+                  isSubmitting={isChatPending}
+                >
+                  <Wand2 className="tw-h-3 tw-w-3 tw-mr-1.5" />
+                  {isChatPending ? "Editing…" : "Send"}
+                </Button>
+                <span className="tw-text-xs tw-text-muted-foreground">⌘↵</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AiGenerateSection({
   siteId, hasSpec, spec, themePreset, generationPrompt, canRebuildPages,
   genPrompt, setGenPrompt, genTheme, setGenTheme,
   genRegenOpen, setGenRegenOpen,
-  isPending, error, onGenerate,
-}: AiGenerateSectionProps) {
-  const queryClient = useQueryClient();
-  const specData = spec as { version: number; pages: { slug: string; title: string; sections: Record<string, unknown>[] }[] } | null;
-  const totalBlocks = specData?.pages.reduce((n, p) => n + p.sections.length, 0) ?? 0;
-  const [rebuildingSlug, setRebuildingSlug] = useState<string | null>(null);
-  const [pageRebuildError, setPageRebuildError] = useState<string | null>(null);
-
-  async function handleRebuildPage(slug: string) {
-    setRebuildingSlug(slug);
-    setPageRebuildError(null);
-    try {
-      await rebuildPage(siteId, slug);
-      await queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
-    } catch (err) {
-      setPageRebuildError((err as Error).message);
-    } finally {
-      setRebuildingSlug(null);
-    }
-  }
+  isPending, error, onGenerate, onSiteUpdated,
+}: AiGenerateSectionProps & { onSiteUpdated: (site: Site) => void }) {
+  const specData = spec as { version: number; pages: { slug: string; title: string; nav_label?: string; sections: Record<string, unknown>[] }[] } | null;
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
+  const [busySlug, setBusySlug] = useState<string | null>(null);
 
   // Prefill prompt from generation_prompt on mount
   const didPrefill = useRef(false);
@@ -791,61 +969,34 @@ function AiGenerateSection({
   return (
     <div className="tw-space-y-4">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <div>
-          <h2 className="tw-text-base tw-font-semibold tw-flex tw-items-center tw-gap-1.5">
-            Generated site
-            <Badge variant="success" className="tw-text-xs">
-              {specData?.pages.length ?? 0} pages · {totalBlocks} blocks
-            </Badge>
-          </h2>
-        </div>
+        <h2 className="tw-text-base tw-font-semibold tw-flex tw-items-center tw-gap-2">
+          Pages
+          <Badge variant="success" className="tw-text-xs">
+            {specData?.pages.length ?? 0}
+          </Badge>
+          {presetName && (
+            <span className="tw-text-xs tw-font-normal tw-text-muted-foreground">· {THEME_PRESET_LABELS[presetName]} theme</span>
+          )}
+        </h2>
       </div>
 
-      {/* Block list per page */}
-      <div className="tw-space-y-3">
+      {/* Per-page accordion */}
+      <div className="tw-space-y-2">
         {specData?.pages.map(page => (
-          <div key={page.slug} className="tw-space-y-1">
-            <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
-              <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-muted-foreground">
-                {page.title}
-              </p>
-              {canRebuildPages && (
-                <button
-                  type="button"
-                  title="Rebuild this page"
-                  disabled={rebuildingSlug !== null}
-                  onClick={() => handleRebuildPage(page.slug)}
-                  className="tw-flex tw-items-center tw-gap-1 tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-transition-colors disabled:tw-opacity-40 disabled:tw-cursor-not-allowed"
-                >
-                  {rebuildingSlug === page.slug
-                    ? <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin" />
-                    : <RefreshCw className="tw-h-3 tw-w-3" />
-                  }
-                  <span>{rebuildingSlug === page.slug ? "Rebuilding…" : "Rebuild"}</span>
-                </button>
-              )}
-            </div>
-            <div className="tw-space-y-0.5">
-              {page.sections.map(s => (
-                <p key={String(s.id)} className="tw-text-sm tw-text-foreground tw-flex tw-items-center tw-gap-1.5">
-                  <span className="tw-text-muted-foreground">·</span>
-                  {blockSummary(s)}
-                </p>
-              ))}
-            </div>
-          </div>
+          <PageAccordionItem
+            key={page.slug}
+            siteId={siteId}
+            page={page}
+            canRebuild={canRebuildPages}
+            anyBusy={busySlug !== null && busySlug !== page.slug}
+            onSiteUpdated={onSiteUpdated}
+            onRebuildStart={slug => { setBusySlug(slug); setRebuildError(null); }}
+            onRebuildEnd={(_, err) => { setBusySlug(null); setRebuildError(err); }}
+          />
         ))}
       </div>
-      {pageRebuildError && (
-        <p className="tw-text-xs tw-text-error">{pageRebuildError}</p>
-      )}
-
-      {/* Theme chip */}
-      {presetName && (
-        <div className="tw-flex tw-items-center tw-gap-2 tw-text-sm">
-          <span className="tw-text-muted-foreground">Theme:</span>
-          <span className="tw-font-medium">{THEME_PRESET_LABELS[presetName]}</span>
-        </div>
+      {rebuildError && (
+        <p className="tw-text-xs tw-text-error">{rebuildError}</p>
       )}
 
       {/* Regenerate accordion */}
@@ -855,7 +1006,7 @@ function AiGenerateSection({
           onClick={() => setGenRegenOpen(!genRegenOpen)}
           className="tw-w-full tw-flex tw-items-center tw-justify-between tw-px-4 tw-py-3 tw-text-sm tw-font-medium tw-text-foreground hover:tw-bg-muted/50 tw-transition-colors"
         >
-          Regenerate
+          Regenerate entire site
           <span className="tw-text-muted-foreground tw-text-lg tw-leading-none">{genRegenOpen ? "−" : "+"}</span>
         </button>
         {genRegenOpen && (
@@ -872,145 +1023,6 @@ function AiGenerateSection({
   );
 }
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  slug?: string;
-}
-
-function PageAiChatSection({
-  siteId,
-  spec,
-  onSiteUpdated,
-}: {
-  siteId: string;
-  spec: { pages: { slug: string; title: string }[] };
-  onSiteUpdated: (site: Site) => void;
-}): React.ReactElement {
-  const [selectedSlug, setSelectedSlug] = useState(spec.pages[0]?.slug ?? "index");
-  const [instruction, setInstruction] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isPending, setIsPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  async function handleSend() {
-    const trimmed = instruction.trim();
-    if (!trimmed || isPending) return;
-    const page = spec.pages.find(p => p.slug === selectedSlug);
-    const pageLabel = page?.title ?? selectedSlug;
-    setMessages(prev => [...prev, { role: "user", content: trimmed, slug: selectedSlug }]);
-    setInstruction("");
-    setIsPending(true);
-    setError(null);
-    try {
-      const updated = await aiEditPage(siteId, selectedSlug, trimmed);
-      onSiteUpdated(updated);
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: `Done — "${pageLabel}" updated. Check the preview to see your changes.`,
-        slug: selectedSlug,
-      }]);
-    } catch (err) {
-      const msg = (err as Error).message;
-      setError(msg);
-      setMessages(prev => [...prev, { role: "assistant", content: `Error: ${msg}`, slug: selectedSlug }]);
-    } finally {
-      setIsPending(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      void handleSend();
-    }
-  }
-
-  const pageLabel = spec.pages.find(p => p.slug === selectedSlug)?.title ?? selectedSlug;
-
-  return (
-    <div className="tw-space-y-3">
-      <div>
-        <h3 className="tw-text-sm tw-font-semibold">AI page editor</h3>
-        <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
-          Edit any page with natural language. Pinpoint ("change the hero headline to…") or broad ("rewrite to speak to beginners").
-        </p>
-      </div>
-
-      {/* Page selector */}
-      <div>
-        <label className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-block tw-mb-1">Page</label>
-        <select
-          value={selectedSlug}
-          onChange={e => setSelectedSlug(e.target.value)}
-          className="tw-w-full tw-rounded-md tw-border tw-border-border tw-bg-background tw-px-3 tw-py-1.5 tw-text-sm tw-text-foreground focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-primary/30"
-        >
-          {spec.pages.map(p => (
-            <option key={p.slug} value={p.slug}>{p.title}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Chat history */}
-      {messages.length > 0 && (
-        <div className="tw-rounded-lg tw-border tw-border-border tw-bg-muted/30 tw-p-3 tw-space-y-3 tw-max-h-64 tw-overflow-y-auto">
-          {messages.map((msg, i) => (
-            <div key={i} className={`tw-flex tw-gap-2 ${msg.role === "user" ? "tw-justify-end" : "tw-justify-start"}`}>
-              <div className={`tw-max-w-[85%] tw-rounded-lg tw-px-3 tw-py-2 tw-text-sm ${
-                msg.role === "user"
-                  ? "tw-bg-primary tw-text-primary-foreground"
-                  : "tw-bg-background tw-border tw-border-border tw-text-foreground"
-              }`}>
-                {msg.role === "user" && msg.slug && (
-                  <span className="tw-block tw-text-xs tw-opacity-70 tw-mb-0.5">{spec.pages.find(p => p.slug === msg.slug)?.title ?? msg.slug}</span>
-                )}
-                {msg.content}
-              </div>
-            </div>
-          ))}
-          {isPending && (
-            <div className="tw-flex tw-gap-2 tw-justify-start">
-              <div className="tw-bg-background tw-border tw-border-border tw-rounded-lg tw-px-3 tw-py-2">
-                <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-      )}
-
-      {/* Input */}
-      <div className="tw-space-y-2">
-        <Textarea
-          placeholder={`Edit "${pageLabel}" — e.g. "Change the hero headline to focus on beginners" or "Rewrite the pricing section to emphasize value"`}
-          value={instruction}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInstruction(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={3}
-          disabled={isPending}
-          className="tw-resize-none"
-        />
-        {error && <p className="tw-text-xs tw-text-error">{error}</p>}
-        <Button
-          onClick={() => void handleSend()}
-          disabled={!instruction.trim()}
-          isSubmitting={isPending}
-          className="tw-w-full"
-          size="sm"
-        >
-          <Wand2 className="tw-h-3.5 tw-w-3.5 tw-mr-1.5" />
-          {isPending ? "Editing…" : "Edit with AI"}
-        </Button>
-        <p className="tw-text-xs tw-text-muted-foreground tw-text-center">⌘↵ to send</p>
-      </div>
-    </div>
-  );
-}
 
 function TemplatePickerEmptyState({
   siteId,
@@ -1766,20 +1778,11 @@ export function SiteDetail() {
                 isPending={generateMutation.isPending}
                 error={generateMutation.error?.message ?? null}
                 onGenerate={() => generateMutation.mutate()}
+                onSiteUpdated={(updated) => {
+                  queryClient.setQueryData(["sites", id], { ...updated, cname_target: site?.cname_target });
+                  refreshPreview();
+                }}
               />
-              {!!site.spec && (
-                <>
-                  <hr className="tw-border-border" />
-                  <PageAiChatSection
-                    siteId={id!}
-                    spec={site.spec as { pages: { slug: string; title: string }[] }}
-                    onSiteUpdated={(updated) => {
-                      queryClient.setQueryData(["sites", id], { ...updated, cname_target: site?.cname_target });
-                      refreshPreview();
-                    }}
-                  />
-                </>
-              )}
             </TabsContent>
 
             {/* Block editor */}

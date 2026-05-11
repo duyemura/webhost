@@ -33,6 +33,38 @@ export const DEFAULT_BRAND_KIT: BrandKit = {
   body_font: "Inter",
 };
 
+/**
+ * Apply brand kit colors onto a theme preset.
+ *
+ * Rules:
+ * - Theme owns: typography (fonts, weight, transform, scale), shape, spacing.
+ *   These reflect the user's structural/aesthetic choice — a "Bold" theme with
+ *   Barlow Condensed uppercase shouldn't be overridden by whatever font the
+ *   original site happened to use.
+ * - Brand kit owns: primary action color and accent. These reflect the gym's
+ *   actual brand identity.
+ * - Background mode stays with the theme — "Dark" keeps its dark background
+ *   even if the gym's site was light. The brand color shows up as the CTA/
+ *   accent on that dark canvas.
+ * - Structural neutrals (muted, border, surface) stay with the theme so they
+ *   remain calibrated for the theme's background mode.
+ */
+export function applyBrandKitToTheme(
+  theme: import("../blocks/types.js").Theme,
+  brandKit: BrandKit,
+): import("../blocks/types.js").Theme {
+  return {
+    ...theme,
+    colors: {
+      ...theme.colors,
+      primary: brandKit.primary,
+      primary_foreground: brandKit.primary_foreground,
+      accent: brandKit.accent,
+    },
+    // Typography stays exactly as the theme defines it.
+  };
+}
+
 interface BrandSignals {
   theme_color: string | null;
   ms_tile_color: string | null;

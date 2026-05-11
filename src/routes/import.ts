@@ -8,7 +8,7 @@ import { THEME_PRESETS } from "../render/theme-presets.js";
 import { DEFAULT_THEME } from "../blocks/types.js";
 import { scrapeWebsite } from "../lib/scrape.js";
 import type { ScrapeResult, ScrapedPage } from "../lib/scrape.js";
-import { extractBrandSignals, extractBrandKit, downloadSiteImage } from "../lib/brand.js";
+import { extractBrandSignals, extractBrandKit, applyBrandKitToTheme, downloadSiteImage } from "../lib/brand.js";
 import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
 import { logAiCall } from "../lib/ai-logger.js";
 import { fetchInstructions, mergeInstructions } from "../lib/block-instructions.js";
@@ -382,22 +382,10 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       ? THEME_PRESETS[body.data.theme_preset]
       : DEFAULT_THEME;
 
-    // Merge brand kit colors/fonts into the preset so the site uses the real brand palette
-    const theme = brandKit
-      ? {
-          ...baseTheme,
-          colors: {
-            ...baseTheme.colors,
-            primary: brandKit.primary,
-            primary_foreground: brandKit.primary_foreground,
-          },
-          typography: {
-            ...baseTheme.typography,
-            heading_font: brandKit.heading_font,
-            body_font: brandKit.body_font,
-          },
-        }
-      : baseTheme;
+    // Apply brand colors onto the theme structure. Typography stays with the
+    // theme — the user chose "Bold" for Barlow Condensed, not for the gym's
+    // original font. Colors come from the brand kit.
+    const theme = brandKit ? applyBrandKitToTheme(baseTheme, brandKit) : baseTheme;
 
     let updated;
     try {

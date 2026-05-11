@@ -64,5 +64,6 @@ export async function renderSpecPage(
     .join("\n"), profile);
 
   const faviconUrl = brandKit?.favicon_url ?? null;
-  return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl });
+  const logoUrl = brandKit?.logo_url ?? null;
+  return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl, logoUrl });
 }

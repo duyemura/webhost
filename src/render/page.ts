@@ -19,16 +19,17 @@ export interface PageBuildOptions {
   site: Pick<Site, "id" | "slug" | "custom_domain">;
   requestPath: string;
   faviconUrl?: string | null;
+  logoUrl?: string | null;
 }
 
 export function buildPage(opts: PageBuildOptions): string {
-  const { page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl } = opts;
+  const { page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl, logoUrl } = opts;
 
   const themeCSS = themeToCSS(theme);
   const fontsUrl = googleFontsUrl(theme);
   const siteName = profile?.biz_name ?? spec.pages[0]?.title ?? "";
   const nav = buildNav(spec, theme, siteName, requestPath);
-  const footer = buildFooter(profile, theme);
+  const footer = buildFooter(spec, profile, logoUrl ?? null);
   const headScripts = buildHeadSnippets(scripts);
   const bodyScripts = buildBodySnippets(scripts);
 

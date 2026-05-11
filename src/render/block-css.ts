@@ -115,32 +115,71 @@ export const BLOCK_CSS = `
 
 /* ── footer ── */
 .site-footer {
-  background: var(--color-muted);
-  border-top: 1px solid var(--color-border);
-  padding: 3rem 0 2rem;
+  background: #0a0a0a;
+  color: #a1a1aa;
+  padding: 4rem 0 0;
 }
-.site-footer__inner {
+.site-footer__body {
+  display: flex;
+  gap: 4rem;
+  padding-bottom: 3rem;
+}
+.site-footer__brand {
+  flex: 0 0 220px;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
-.site-footer__name {
+.site-footer__logo { display: inline-block; text-decoration: none; }
+.site-footer__logo-img { max-height: 64px; width: auto; filter: brightness(0) invert(1); }
+.site-footer__logo-text {
   font-family: var(--font-heading);
-  font-weight: var(--font-heading-weight);
+  font-weight: 700;
   font-size: 1.125rem;
+  color: #fff;
+  letter-spacing: 0.02em;
 }
-.site-footer__meta {
-  color: var(--color-muted-fg);
-  font-size: 0.875rem;
-  line-height: 1.8;
+.site-footer__hours { font-size: 0.8125rem; color: #71717a; line-height: 1.6; }
+.site-footer__cols {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5rem 3rem;
 }
-.site-footer__meta a { color: var(--color-muted-fg); }
-.site-footer__copy {
-  color: var(--color-muted-fg);
-  font-size: 0.8125rem;
-  border-top: 1px solid var(--color-border);
-  padding-top: 1.5rem;
-  margin-top: 0.5rem;
+.site-footer__col { min-width: 130px; }
+.site-footer__col-heading {
+  font-family: var(--font-heading);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  margin-bottom: 1.25rem;
+}
+.site-footer__links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.site-footer__links a {
+  color: #a1a1aa;
+  text-decoration: none;
+  font-size: 0.9375rem;
+  transition: color 0.15s;
+}
+.site-footer__links a:hover { color: #fff; }
+.site-footer__address { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9375rem; line-height: 1.6; }
+.site-footer__address p { margin: 0; }
+.site-footer__address a { color: #a1a1aa; text-decoration: none; transition: color 0.15s; }
+.site-footer__address a:hover { color: #fff; }
+.site-footer__bottom {
+  border-top: 1px solid #27272a;
+  padding: 1.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.site-footer__copy { font-size: 0.8125rem; color: #52525b; margin: 0; }
+@media (max-width: 768px) {
+  .site-footer__body { flex-direction: column; gap: 2.5rem; }
+  .site-footer__brand { flex: unset; }
+  .site-footer__cols { gap: 2rem; }
 }
 
 /* ── hero ── */

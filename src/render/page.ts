@@ -18,10 +18,11 @@ export interface PageBuildOptions {
   scripts: Script[];
   site: Pick<Site, "id" | "slug" | "custom_domain">;
   requestPath: string;
+  faviconUrl?: string | null;
 }
 
 export function buildPage(opts: PageBuildOptions): string {
-  const { page, spec, theme, profile, sectionsHtml, scripts, site, requestPath } = opts;
+  const { page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl } = opts;
 
   const themeCSS = themeToCSS(theme);
   const fontsUrl = googleFontsUrl(theme);
@@ -38,6 +39,7 @@ export function buildPage(opts: PageBuildOptions): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${esc(page.title)}</title>
   ${page.meta_description ? `<meta name="description" content="${esc(page.meta_description)}">` : ""}
+  ${faviconUrl ? `<link rel="icon" href="${esc(faviconUrl)}">` : ""}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${esc(fontsUrl)}" rel="stylesheet">

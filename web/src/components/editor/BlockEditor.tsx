@@ -6,7 +6,7 @@ import { BlockList } from "./BlockList";
 import { AddBlockDialog } from "./AddBlockDialog";
 import { ThemeEditor } from "./ThemeEditor";
 import { addPage, removePage } from "../../lib/spec";
-import { updateSpec, updateTheme, revertThemeToPublished, getPresets, THEME_PRESET_LABELS, type ThemePreset, type SiteSpec, type Theme } from "../../api";
+import { updateSpec, updateTheme, updateBrandKit, revertThemeToPublished, getPresets, uploadAsset, THEME_PRESET_LABELS, type ThemePreset, type SiteSpec, type Theme, type BrandKit, DEFAULT_BRAND_KIT } from "../../api";
 
 interface BlockEditorProps {
   siteId: string;
@@ -14,17 +14,20 @@ interface BlockEditorProps {
   initialTheme: Theme;
   themePreset?: string | null;
   publishedTheme?: unknown;
+  initialBrandKit?: BrandKit | null;
   iframeRef: RefObject<HTMLIFrameElement | null>;
   onLivePreviewChange?: (spec: SiteSpec, theme: Theme, activePage: string) => void;
 }
 
-export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, publishedTheme, iframeRef, onLivePreviewChange }: BlockEditorProps) {
+export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, publishedTheme, initialBrandKit, iframeRef, onLivePreviewChange }: BlockEditorProps) {
   const queryClient = useQueryClient();
 
   const [localSpec, setLocalSpec] = useState<SiteSpec>(initialSpec);
   const [localTheme, setLocalTheme] = useState<Theme>(initialTheme);
   const [savedSpec, setSavedSpec] = useState<SiteSpec>(initialSpec);
   const [savedTheme, setSavedTheme] = useState<Theme>(initialTheme);
+  const [localBrandKit, setLocalBrandKit] = useState<BrandKit>(initialBrandKit ?? DEFAULT_BRAND_KIT);
+  const [savedBrandKit, setSavedBrandKit] = useState<BrandKit>(initialBrandKit ?? DEFAULT_BRAND_KIT);
 
   const { data: presets, isError: presetsError } = useQuery({ queryKey: ["presets"], queryFn: getPresets, staleTime: Infinity });
   const activePreset = presets && themePreset ? presets[themePreset] : undefined;
@@ -45,30 +48,33 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, pu
     onLivePreviewChangeRef.current?.(localSpec, localTheme, activePage);
   }, [localSpec, localTheme, activePage]);
 
-  // spec/theme helpers always return new references on real changes — reference equality is sufficient
-  const dirty = localSpec !== savedSpec || localTheme !== savedTheme;
+  // spec/theme/brandKit helpers always return new references on real changes — reference equality is sufficient
+  const dirty = localSpec !== savedSpec || localTheme !== savedTheme || localBrandKit !== savedBrandKit;
 
   // Auto-save 1.5 s after the last change so the server stays in sync without requiring a manual save.
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doSaveRef = useRef<() => void>(() => {});
-  doSaveRef.current = () => saveMutation.mutate();
+  doSaveRef.current = () => { if (!saveMutation.isPending) saveMutation.mutate(); };
   useEffect(() => {
     if (!dirty) return;
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => { doSaveRef.current(); }, 1500);
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
-  }, [dirty, localSpec, localTheme]);
+  }, [dirty, localSpec, localTheme, localBrandKit]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const specChanged = localSpec !== savedSpec;
       const themeChanged = localTheme !== savedTheme;
+      const brandChanged = localBrandKit !== savedBrandKit;
       if (specChanged) await updateSpec(siteId, localSpec);
       if (themeChanged) await updateTheme(siteId, localTheme, themePreset ?? undefined);
+      if (brandChanged) await updateBrandKit(siteId, localBrandKit);
     },
     onSuccess: () => {
       setSavedSpec(localSpec);
       setSavedTheme(localTheme);
+      setSavedBrandKit(localBrandKit);
       queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
       iframeRef.current?.contentWindow?.location.reload();
     },
@@ -231,6 +237,16 @@ export function BlockEditor({ siteId, initialSpec, initialTheme, themePreset, pu
             <ThemeEditor
               theme={localTheme}
               onChange={setLocalTheme}
+              brandKit={localBrandKit}
+              onBrandKitChange={setLocalBrandKit}
+              onLogoUpload={async (file) => {
+                const asset = await uploadAsset(siteId, file);
+                return asset ? `/api/sites/${siteId}/assets/${asset.filename}` : null;
+              }}
+              onFaviconUpload={async (file) => {
+                const asset = await uploadAsset(siteId, file);
+                return asset ? `/api/sites/${siteId}/assets/${asset.filename}` : null;
+              }}
               preset={activePreset}
               presetName={presetLabel}
               publishedTheme={publishedTheme as Theme | null}

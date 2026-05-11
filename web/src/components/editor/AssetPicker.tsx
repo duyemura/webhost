@@ -13,7 +13,7 @@ import { getAssets, uploadAsset, deleteAsset, type SiteAsset } from "../../api";
 
 type AcceptKind = "image" | "video" | "any";
 
-const IMAGE_MIMES = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml";
+const IMAGE_MIMES = "image/jpeg,image/png,image/webp,image/gif";
 const VIDEO_MIMES = "video/mp4,video/webm";
 
 const ACCEPT_ATTR: Record<AcceptKind, string> = {

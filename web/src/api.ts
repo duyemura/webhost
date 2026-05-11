@@ -5,6 +5,32 @@ export interface User {
   created_at: string;
 }
 
+export interface BrandKit {
+  logo_url: string | null;
+  favicon_url: string | null;
+  primary: string;
+  primary_foreground: string;
+  secondary: string;
+  background: string;
+  foreground: string;
+  accent: string;
+  heading_font: string;
+  body_font: string;
+}
+
+export const DEFAULT_BRAND_KIT: BrandKit = {
+  logo_url: null,
+  favicon_url: null,
+  primary: "#111827",
+  primary_foreground: "#ffffff",
+  secondary: "#374151",
+  background: "#ffffff",
+  foreground: "#111111",
+  accent: "#111827",
+  heading_font: "Inter",
+  body_font: "Inter",
+};
+
 export interface Site {
   id: string;
   user_id: string;
@@ -24,6 +50,7 @@ export interface Site {
   generation_prompt: string | null;
   theme_preset: string | null;
   published_theme: unknown | null;
+  brand_kit: BrandKit | null;
 }
 
 function getToken(): string | null {
@@ -231,6 +258,8 @@ export const updateSpec = (id: string, spec: SiteSpec) =>
   apiFetch<Site>(`/sites/${id}/spec`, { method: "PUT", body: JSON.stringify(spec) });
 export const updateTheme = (id: string, theme: Theme, themePreset?: string) =>
   apiFetch<Site>(`/sites/${id}/theme`, { method: "PUT", body: JSON.stringify({ theme, theme_preset: themePreset }) });
+export const updateBrandKit = (id: string, brandKit: BrandKit) =>
+  apiFetch<Site>(`/sites/${id}/brand-kit`, { method: "PUT", body: JSON.stringify(brandKit) });
 export const revertThemeToPublished = (id: string) =>
   apiFetch<Site>(`/sites/${id}/theme/revert-to-published`, { method: "POST" });
 export const getPresets = () =>
@@ -287,6 +316,33 @@ export async function uploadAsset(siteId: string, file: File): Promise<SiteAsset
 
 export const deleteAsset = (siteId: string, assetId: string) =>
   apiFetch<void>(`/sites/${siteId}/assets/${assetId}`, { method: "DELETE" });
+
+// ── Google Places ─────────────────────────────────────────────────────────────
+
+export interface PlaceSearchResult {
+  id: string;
+  name: string;
+  address: string;
+  phone: string | null;
+  website: string | null;
+  types: string[];
+  rating: number | null;
+  isFitness: boolean;
+}
+
+export interface PlaceDetail extends PlaceSearchResult {
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
+  hours: string | null;
+}
+
+export const searchPlaces = (q: string) =>
+  apiFetch<PlaceSearchResult[]>(`/places/search?q=${encodeURIComponent(q)}`);
+
+export const getPlaceDetail = (id: string) =>
+  apiFetch<PlaceDetail>(`/places/${encodeURIComponent(id)}`);
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 

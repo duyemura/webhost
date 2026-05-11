@@ -94,6 +94,51 @@ export const specRoutes: FastifyPluginAsync = async (app) => {
     return updated;
   });
 
+  const assetUrl = z.string().max(500).refine(
+    v => v.startsWith("/") || v.startsWith("http://") || v.startsWith("https://"),
+    "Must be a relative path or absolute URL"
+  ).nullable();
+  const brandKitSchema = z.object({
+    logo_url: assetUrl,
+    favicon_url: assetUrl,
+    primary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    primary_foreground: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    secondary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    background: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    foreground: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    heading_font: z.string().max(100),
+    body_font: z.string().max(100),
+  });
+
+  app.put("/api/sites/:id/brand-kit", async (req, reply) => {
+    const { id } = req.params as { id: string };
+
+    const site = await db
+      .selectFrom("sites")
+      .select("id")
+      .where("id", "=", id)
+      .where("user_id", "=", req.user.sub)
+      .executeTakeFirst();
+
+    if (!site) return reply.notFound();
+
+    const parsed = brandKitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.badRequest(`Invalid brand kit: ${parsed.error.issues.map(i => i.message).join("; ")}`);
+    }
+
+    const now = new Date();
+    const updated = await db
+      .updateTable("sites")
+      .set({ brand_kit: JSON.stringify(parsed.data), updated_at: now, draft_updated_at: now })
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return updated;
+  });
+
   app.post("/api/sites/:id/theme/revert-to-published", async (req, reply) => {
     const { id } = req.params as { id: string };
 

@@ -50,6 +50,7 @@ export const specSchema = z.object({
   pages: z.array(z.object({
     slug: z.string().regex(/^[a-z0-9-]+$/),
     title: z.string().min(1).max(200),
+    nav_label: z.string().min(1).max(40).optional(),
     meta_description: z.string().max(300).optional().default(""),
     sections: z.array(sectionSchema),
   })).min(1),

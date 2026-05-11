@@ -1,25 +1,54 @@
 import type { Site, BusinessProfile, Script } from "../db/types.js";
 import type { SiteSpec, Theme } from "../blocks/types.js";
 import { DEFAULT_THEME } from "../blocks/types.js";
+import type { BrandKit } from "../lib/brand.js";
 import { registry } from "../blocks/index.js";
 import { buildPage } from "./page.js";
 
+function applyBrandKit(theme: Theme, brandKit: BrandKit): Theme {
+  return {
+    ...theme,
+    colors: {
+      ...theme.colors,
+      primary: brandKit.primary,
+      primary_foreground: brandKit.primary_foreground,
+      secondary: brandKit.secondary,
+      background: brandKit.background,
+      foreground: brandKit.foreground,
+      accent: brandKit.accent,
+    },
+    typography: {
+      ...theme.typography,
+      heading_font: brandKit.heading_font,
+      body_font: brandKit.body_font,
+    },
+  };
+}
+
 export async function renderSpecPage(
-  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme">,
+  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme" | "brand_kit">,
   profile: BusinessProfile | null,
   scripts: Script[],
   requestPath: string
 ): Promise<string | null> {
   const spec = site.spec as SiteSpec;
-  const theme = (site.theme as Theme | null) ?? DEFAULT_THEME;
+  const baseTheme = (site.theme as Theme | null) ?? DEFAULT_THEME;
+  const brandKit = site.brand_kit as BrandKit | null;
+  const theme = brandKit ? applyBrandKit(baseTheme, brandKit) : baseTheme;
 
   const slug = requestPath === "/" ? "index" : requestPath.replace(/^\//, "").split("/")[0];
   const page = spec.pages.find(p => p.slug === slug);
   if (!page) return null;
 
   const sectionsHtml = page.sections
-    .map(s => registry.render(s, theme, profile))
+    .map(s => {
+      const html = registry.render(s, theme, profile);
+      const bg = (s as Record<string, unknown>).bg as string | undefined;
+      if (!bg || bg === "default") return html;
+      return `<div class="section-bg--${bg}">${html}</div>`;
+    })
     .join("\n");
 
-  return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath });
+  const faviconUrl = brandKit?.favicon_url ?? null;
+  return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl });
 }

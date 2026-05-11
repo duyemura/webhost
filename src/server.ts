@@ -18,6 +18,7 @@ import { specRoutes } from "./routes/spec.js";
 import { generateRoutes } from "./routes/generate.js";
 import { importRoutes } from "./routes/import.js";
 import { templatesRoutes } from "./routes/templates.js";
+import { placesRoutes } from "./routes/places.js";
 import { assetsRoutes } from "./routes/assets.js";
 import { siteServer } from "./plugins/site-server.js";
 
@@ -70,6 +71,7 @@ await app.register(specRoutes);
 await app.register(generateRoutes);
 await app.register(importRoutes);
 await app.register(templatesRoutes);
+await app.register(placesRoutes);
 await app.register(assetsRoutes);
 
 // Serve the built dashboard in production. In dev, Vite runs separately on port 5173.

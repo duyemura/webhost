@@ -36,7 +36,9 @@ export class BlockRegistry {
   toAISchema(): object {
     const defs: Record<string, object> = {};
     for (const [type, block] of this.blocks) {
-      defs[type] = block.aiSchema;
+      defs[type] = block.copyGuidelines
+        ? { ...block.aiSchema, copyGuidelines: block.copyGuidelines }
+        : block.aiSchema;
     }
     return defs;
   }

@@ -73,20 +73,22 @@ function buildInputSchema(): object {
         description: "Array of pages. First page must have slug 'index'.",
         items: {
           type: "object",
-          required: ["slug", "title", "meta_description", "sections"],
+          required: ["slug", "title", "nav_label", "meta_description", "sections"],
           properties: {
             slug: { type: "string", description: "URL slug: 'index', 'contact', 'programs', etc." },
-            title: { type: "string", description: "Page <title> tag" },
+            title: { type: "string", description: "Full SEO page title for <title> tag" },
+            nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words. Examples: 'CrossFit', 'Bootcamp', 'Personal training', 'Pricing', 'Contact'" },
             meta_description: { type: "string", description: "Meta description for SEO, max 160 chars" },
             sections: {
               type: "array",
-              description: `Array of section objects. Each must have 'id' (unique string) and 'type' (one of: ${sectionTypes.join(", ")}).\n\nAvailable block types and their fields:\n${sectionDescriptions}`,
+              description: `Array of section objects. Each must have 'id' (unique string) and 'type' (one of: ${sectionTypes.join(", ")}).\n\nEach section accepts an optional "bg" field:\n- "default" — brand background (white/light)\n- "muted" — light gray; alternate with default to break up the page\n- "dark" — near-black; 1–2 high-impact sections per page (CTA, stats, intro offer)\n- "primary" — brand color; at most 1 section per page\nDo NOT leave every section as default — alternate muted/default at minimum.\n\nAvailable block types and their fields:\n${sectionDescriptions}`,
               items: {
                 type: "object",
                 required: ["id", "type"],
                 properties: {
                   id: { type: "string" },
                   type: { type: "string", enum: sectionTypes },
+                  bg: { type: "string", enum: ["default", "muted", "dark", "primary"] },
                 },
                 additionalProperties: true,
               },
@@ -144,7 +146,7 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
         tool_choice: { type: "tool", name: "create_website_spec" },
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: userMessage }],
-      });
+      }, { timeout: 120_000 });
 
       const toolUse = msg.content.find(c => c.type === "tool_use");
       if (!toolUse || toolUse.type !== "tool_use") {

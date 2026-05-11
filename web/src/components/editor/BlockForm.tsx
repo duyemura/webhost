@@ -171,7 +171,7 @@ export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
   );
 }
 
-const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml";
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 const VIDEO_ACCEPT = "video/mp4,video/webm";
 
 function InlineMediaField({

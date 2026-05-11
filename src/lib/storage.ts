@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
-import { putFile, getFile, deleteFile } from "./r2.js";
+import { putFile, getFile, deleteFile, deletePrefix } from "./r2.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
@@ -55,6 +55,16 @@ export async function removeAsset(siteId: string, filename: string): Promise<voi
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
     }
+  }
+}
+
+export async function removeAllAssets(siteId: string): Promise<void> {
+  if (useR2) {
+    await deletePrefix(`assets/${siteId}/`);
+  } else {
+    const dir = path.join(UPLOADS_DIR, siteId);
+    // force: true already suppresses ENOENT, so any error here is a real problem
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 

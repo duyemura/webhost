@@ -7,59 +7,85 @@ import { registry } from "../blocks/index.js";
 import { THEME_PRESETS } from "../render/theme-presets.js";
 import { DEFAULT_THEME } from "../blocks/types.js";
 import { scrapeWebsite } from "../lib/scrape.js";
-import type { ScrapeResult } from "../lib/scrape.js";
+import type { ScrapeResult, ScrapedPage } from "../lib/scrape.js";
+import { extractBrandSignals, extractBrandKit, downloadSiteImage } from "../lib/brand.js";
+import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
+
+const gmbProfileSchema = z.object({
+  biz_name: z.string().max(200).optional(),
+  phone: z.string().max(50).nullable().optional(),
+  address: z.string().max(300).nullable().optional(),
+  city: z.string().max(100).nullable().optional(),
+  state: z.string().max(100).nullable().optional(),
+  zip: z.string().max(20).nullable().optional(),
+  country: z.string().max(10).nullable().optional(),
+  website_url: z.string().max(500).nullable().optional(),
+  hours: z.string().max(1000).nullable().optional(),
+});
 
 const bodySchema = z.object({
   url: z.string().url("Must be a valid URL"),
   theme_preset: z.string().optional(),
+  gmb_profile: gmbProfileSchema.optional(),
 });
 
-const IMPORT_SYSTEM_PROMPT = `You are an expert web designer converting an existing website into a structured block-based spec.
-
-Your job is to call the create_website_spec tool with a complete spec that mirrors the structure and content of the scraped website.
+const PAGE_SYSTEM_PROMPT = `You are an expert web designer mapping a single page from an existing website into a block-based spec.
 
 Guidelines:
-- Create one page per scraped page. The homepage MUST use slug "index".
-- Map each scraped section to the best matching block type.
+- Map each scraped section to the best matching block type from the catalog.
 - Prefer specific block types over rich-text. Only use rich-text when nothing else fits.
 - Extract real content from the scraped text — headlines, copy, list items, button labels.
-- Replace any business name/phone/email/address with {{business.name}}, {{business.phone}}, {{business.email}}, {{business.address}}, {{business.hours}}, {{business.city}}, {{business.state}} tokens where appropriate.
-- Keep the ordering and structure of the original site as closely as possible.
+- Replace business name/phone/email/address with {{business.name}}, {{business.phone}}, {{business.email}}, {{business.address}}, {{business.hours}}, {{business.city}}, {{business.state}} tokens.
 - Each section needs a unique string "id" field (short descriptive IDs like "hero1", "about1").
-- For sections you cannot confidently map to any block type, use rich-text and include a note in the _gaps array.
-- The _gaps array should contain plain English descriptions of content patterns you saw but couldn't represent well (e.g. "Interactive class schedule calendar", "Custom booking widget"). These help developers know which block types to build next.`;
+- Write a short meta_description (max 160 chars) that describes the page.
+- In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
+- Images: if the user message includes "Downloaded images", use those asset URLs directly in image fields (image_url, background.value, items[].image_url, etc). Match each image to the section it came from. Prefer real images over leaving image fields empty.`;
 
-function buildImportUserMessage(scrape: ScrapeResult): string {
+export interface DownloadedImage {
+  assetUrl: string;
+  originalUrl: string;
+  alt: string;
+  pageSlug: string;
+  sectionHint: string;
+}
+
+function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[]): string {
   const lines: string[] = [
-    `Website: ${scrape.site_name} (${scrape.base_url})`,
-    `Pages found: ${scrape.pages.length}`,
-    "",
-    "Scraped content:",
+    `Site: ${siteName}`,
+    `Page: ${page.title || page.slug}`,
+    `URL: ${page.url}`,
+    `Sections found: ${page.sections.length}`,
     "",
   ];
 
-  for (const page of scrape.pages) {
-    lines.push(`=== PAGE: ${page.title || page.slug} (slug: ${page.slug}) ===`);
-    lines.push(`URL: ${page.url}`);
-    lines.push(`Sections found: ${page.sections.length}`);
-    lines.push("");
-
-    for (const section of page.sections) {
-      lines.push(`--- Section [${section.tag}] class="${section.class_hints}" ---`);
-      if (section.heading) lines.push(`Heading: ${section.heading}`);
-      if (section.subheading && section.subheading !== section.heading) lines.push(`Subheading: ${section.subheading}`);
-      if (section.paragraphs.length > 0) lines.push(`Text: ${section.paragraphs.join(" | ")}`);
-      if (section.buttons.length > 0) lines.push(`Buttons/CTAs: ${section.buttons.join(", ")}`);
-      if (section.list_items.length > 0) lines.push(`List items: ${section.list_items.slice(0, 8).join(" | ")}`);
-      if (section.image_alts.length > 0) lines.push(`Images: ${section.image_alts.join(", ")}`);
-      lines.push("");
+  // Include downloaded images available for this page
+  const pageImages = images.filter(img => img.pageSlug === page.slug);
+  if (pageImages.length > 0) {
+    lines.push("Downloaded images (use these URLs directly in image fields):");
+    for (const img of pageImages) {
+      const altNote = img.alt ? ` alt="${img.alt}"` : "";
+      const hint = img.sectionHint === "css" ? "css background" : img.sectionHint;
+      lines.push(`  ${img.assetUrl}${altNote} [source: ${hint}]`);
     }
+    lines.push("");
+  }
+
+  for (const section of page.sections) {
+    lines.push(`--- Section [${section.tag}] class="${section.class_hints}" ---`);
+    if (section.heading) lines.push(`Heading: ${section.heading}`);
+    if (section.subheading && section.subheading !== section.heading) lines.push(`Subheading: ${section.subheading}`);
+    if (section.paragraphs.length > 0) lines.push(`Text: ${section.paragraphs.join(" | ")}`);
+    if (section.buttons.length > 0) lines.push(`Buttons/CTAs: ${section.buttons.join(", ")}`);
+    if (section.list_items.length > 0) lines.push(`List items: ${section.list_items.slice(0, 8).join(" | ")}`);
+    const imageAlts = section.images.map(img => img.alt).filter(Boolean);
+    if (imageAlts.length > 0) lines.push(`Images: ${imageAlts.join(", ")}`);
+    lines.push("");
   }
 
   return lines.join("\n");
 }
 
-function buildInputSchema(): object {
+function buildPageToolSchema(): object {
   const sectionTypes = registry.getTypes();
   const aiSchemas = registry.toAISchema() as Record<string, { type: string; fields: Record<string, string> }>;
 
@@ -75,43 +101,90 @@ function buildInputSchema(): object {
 
   return {
     type: "object",
+    required: ["title", "nav_label", "meta_description", "sections"],
     properties: {
-      version: { type: "number", enum: [1] },
-      pages: {
+      title: { type: "string", description: "Full SEO page title (no site name suffix)" },
+      nav_label: { type: "string", description: "Short nav menu label — 1 to 3 words, no location suffix. Examples: 'CrossFit', 'Bootcamp', 'Personal training', 'Pricing', 'Contact'" },
+      meta_description: { type: "string", description: "Max 160 chars" },
+      sections: {
         type: "array",
-        description: "Array of pages mirroring the scraped site structure.",
+        description: `Each section accepts an optional "bg" field:\n- "default" — brand background (white/light)\n- "muted" — light gray; use for every other section to break up the page\n- "dark" — near-black; use for 1–2 high-impact sections (CTA, stats, location)\n- "primary" — brand color; use for at most 1 section per page\nDo NOT leave every section as default — the page will look flat. Alternate muted/default at minimum.\n\nAvailable block types:\n${sectionDescriptions}`,
         items: {
           type: "object",
-          required: ["slug", "title", "meta_description", "sections"],
+          required: ["id", "type"],
           properties: {
-            slug: { type: "string" },
-            title: { type: "string" },
-            meta_description: { type: "string", description: "Max 160 chars" },
-            sections: {
-              type: "array",
-              description: `Available block types:\n${sectionDescriptions}`,
-              items: {
-                type: "object",
-                required: ["id", "type"],
-                properties: {
-                  id: { type: "string" },
-                  type: { type: "string", enum: sectionTypes },
-                },
-                additionalProperties: true,
-              },
-            },
+            id: { type: "string" },
+            type: { type: "string", enum: sectionTypes },
+            bg: { type: "string", enum: ["default", "muted", "dark", "primary"] },
           },
+          additionalProperties: true,
         },
-        minItems: 1,
-        maxItems: 6,
       },
       _gaps: {
         type: "array",
-        description: "Describe any content patterns from the scraped site that don't map well to available block types. These help developers prioritize new blocks to build.",
+        description: "Content patterns you couldn't map to any block type.",
         items: { type: "string" },
       },
     },
-    required: ["version", "pages"],
+  };
+}
+
+function sanitizeSlug(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/https?:\/\/[^\s]*/g, "")
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60) || "page";
+}
+
+function sseWrite(reply: import("fastify").FastifyReply, event: string, data: unknown) {
+  reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+interface PageResult {
+  slug: string;
+  title: string;
+  nav_label?: string;
+  meta_description: string;
+  sections: unknown[];
+  gaps: string[];
+}
+
+async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[]): Promise<PageResult> {
+  const toolSchema = buildPageToolSchema();
+  const userMessage = buildPageUserMessage(page, siteName, images);
+
+  const msg = await anthropic.messages.create({
+    model: "claude-opus-4-7",
+    max_tokens: 4000,
+    tools: [{
+      name: "create_page_spec",
+      description: "Maps this page's scraped content into a structured block spec.",
+      input_schema: toolSchema as { type: "object"; properties: Record<string, unknown> },
+    }],
+    tool_choice: { type: "tool", name: "create_page_spec" },
+    system: PAGE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userMessage }],
+  }, { timeout: 90_000 });
+
+  const toolUse = msg.content.find(c => c.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error(`AI did not return a spec for page "${page.title || slug}"`);
+  }
+
+  const input = toolUse.input as Record<string, unknown>;
+  const gaps = Array.isArray(input._gaps) ? (input._gaps as string[]) : [];
+  const sections = Array.isArray(input.sections) ? input.sections : [];
+
+  return {
+    slug,
+    title: String(input.title ?? page.title ?? slug),
+    nav_label: input.nav_label ? String(input.nav_label) : undefined,
+    meta_description: String(input.meta_description ?? ""),
+    sections,
+    gaps,
   };
 }
 
@@ -135,86 +208,223 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
 
     if (!site) return reply.notFound();
 
-    // 1. Scrape
+    // Switch to SSE streaming
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
+    // 1. Scrape with live events
     let scrape: ScrapeResult;
     try {
-      scrape = await scrapeWebsite(body.data.url);
-    } catch (err) {
-      return reply.badRequest((err as Error).message);
-    }
-
-    // 2. Ask Claude to map to our block spec
-    const userMessage = buildImportUserMessage(scrape);
-    const inputSchema = buildInputSchema();
-
-    let specData: unknown;
-    let gaps: string[] = [];
-    try {
-      const msg = await anthropic.messages.create({
-        model: "claude-opus-4-7",
-        max_tokens: 10000,
-        tools: [{
-          name: "create_website_spec",
-          description: "Maps the scraped website content into a block-based spec. Call this with the complete spec.",
-          input_schema: inputSchema as { type: "object"; properties: Record<string, unknown> },
-        }],
-        tool_choice: { type: "tool", name: "create_website_spec" },
-        system: IMPORT_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userMessage }],
+      scrape = await scrapeWebsite(body.data.url, (e) => {
+        sseWrite(reply, e.type, e);
       });
-
-      const toolUse = msg.content.find(c => c.type === "tool_use");
-      if (!toolUse || toolUse.type !== "tool_use") {
-        return reply.internalServerError("AI did not return a structured spec.");
-      }
-
-      const input = toolUse.input as Record<string, unknown>;
-      gaps = Array.isArray(input._gaps) ? (input._gaps as string[]) : [];
-
-      // Strip _gaps before spec validation
-      const { _gaps: _removed, ...specOnly } = input;
-      specData = specOnly;
     } catch (err) {
-      return reply.internalServerError(`AI import failed: ${(err as Error).message}`);
+      sseWrite(reply, "error", { message: (err as Error).message });
+      reply.raw.end();
+      return reply;
     }
+
+    // 2. Extract brand kit from home page HTML
+    sseWrite(reply, "brand_start", {});
+    let brandKit;
+    try {
+      const homeHtml = scrape.pages[0]?._html ?? "";
+      const signals = extractBrandSignals(homeHtml, scrape.base_url, scrape.site_name);
+      brandKit = await extractBrandKit(signals, id);
+      sseWrite(reply, "brand_done", {
+        logo: !!brandKit.logo_url,
+        primary: brandKit.primary,
+        heading_font: brandKit.heading_font,
+      });
+    } catch {
+      brandKit = null;
+      sseWrite(reply, "brand_done", { logo: false, primary: null, heading_font: null });
+    }
+
+    // 3. Harvest and download site images (cap 20 across all pages)
+    const downloadedImages: DownloadedImage[] = [];
+    const seenImageUrls = new Set<string>();
+    const MAX_SITE_IMAGES = 20;
+
+    sseWrite(reply, "images_start", {});
+    const imageDownloadTasks: Array<() => Promise<void>> = [];
+
+    for (const page of scrape.pages) {
+      // Section-level images (inline img tags / inline background styles)
+      for (const section of page.sections) {
+        for (const image of section.images) {
+          const originalUrl = image.src;
+          if (seenImageUrls.has(originalUrl)) continue;
+          if (imageDownloadTasks.length >= MAX_SITE_IMAGES) break;
+          seenImageUrls.add(originalUrl);
+          const alt = image.alt;
+          const sectionHint = section.class_hints.split(" ")[0] || section.tag;
+          const pageSlug = page.slug;
+          imageDownloadTasks.push(async () => {
+            const assetUrl = await downloadSiteImage(originalUrl, id);
+            if (assetUrl) downloadedImages.push({ assetUrl, originalUrl, alt, pageSlug, sectionHint });
+          });
+        }
+      }
+      // Page-level images from CSS / preload hints (not tied to a section)
+      for (const originalUrl of page.page_images) {
+        if (seenImageUrls.has(originalUrl)) continue;
+        if (imageDownloadTasks.length >= MAX_SITE_IMAGES) break;
+        seenImageUrls.add(originalUrl);
+        const pageSlug = page.slug;
+        imageDownloadTasks.push(async () => {
+          const assetUrl = await downloadSiteImage(originalUrl, id);
+          if (assetUrl) downloadedImages.push({ assetUrl, originalUrl, alt: "", pageSlug, sectionHint: "css" });
+        });
+      }
+    }
+
+    // Download in parallel batches of 5
+    const totalImageTasks = imageDownloadTasks.length;
+    for (let i = 0; i < imageDownloadTasks.length; i += 5) {
+      await Promise.all(imageDownloadTasks.slice(i, i + 5).map(t => t()));
+    }
+
+    sseWrite(reply, "images_done", { count: downloadedImages.length, failed: totalImageTasks - downloadedImages.length });
+
+    // 4. Build each page individually so we can emit per-page progress
+    sseWrite(reply, "ai_start", { pages: scrape.pages.length });
+
+    const pageResults: PageResult[] = [];
+    const allGaps: string[] = [];
+
+    for (let i = 0; i < scrape.pages.length; i++) {
+      const page = scrape.pages[i];
+      const slug = i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`);
+      const label = page.title?.split(/[-|]/)[0].trim() || slug;
+
+      sseWrite(reply, "ai_page_start", { slug, label, index: i, total: scrape.pages.length });
+
+      try {
+        // Send periodic heartbeats so the SSE connection stays alive during long AI calls
+        const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
+        let result: PageResult;
+        try {
+          result = await processPage(page, slug, scrape.site_name, downloadedImages);
+        } finally {
+          clearInterval(heartbeat);
+        }
+        pageResults.push(result);
+        allGaps.push(...result.gaps);
+        sseWrite(reply, "ai_page_done", { slug, label: result.title, blocks: result.sections.length });
+      } catch (err) {
+        sseWrite(reply, "error", { message: (err as Error).message });
+        reply.raw.end();
+        return reply;
+      }
+    }
+
+    // 3. Assemble + validate full spec
+    const specData = {
+      version: 1,
+      pages: pageResults.map(({ gaps: _g, ...p }) => p),
+    };
 
     const parsed = specSchema.safeParse(specData);
     if (!parsed.success) {
-      return reply.internalServerError(
-        `AI returned invalid spec: ${parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`
-      );
+      sseWrite(reply, "error", {
+        message: `Invalid spec: ${parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      });
+      reply.raw.end();
+      return reply;
     }
 
-    const theme = (body.data.theme_preset && THEME_PRESETS[body.data.theme_preset])
+    const baseTheme = (body.data.theme_preset && THEME_PRESETS[body.data.theme_preset])
       ? THEME_PRESETS[body.data.theme_preset]
       : DEFAULT_THEME;
 
-    const now = new Date();
-    const updated = await db
-      .updateTable("sites")
-      .set({
-        spec: JSON.stringify(parsed.data),
-        theme: JSON.stringify(theme),
-        theme_preset: body.data.theme_preset ?? null,
-        generation_prompt: `Imported from ${body.data.url}`,
-        updated_at: now,
-        draft_updated_at: now,
-        ...(site.published_at ? {} : { published_at: now }),
-      })
-      .where("id", "=", id)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    // Merge brand kit colors/fonts into the preset so the site uses the real brand palette
+    const theme = brandKit
+      ? {
+          ...baseTheme,
+          colors: {
+            ...baseTheme.colors,
+            primary: brandKit.primary,
+            primary_foreground: brandKit.primary_foreground,
+          },
+          typography: {
+            ...baseTheme.typography,
+            heading_font: brandKit.heading_font,
+            body_font: brandKit.body_font,
+          },
+        }
+      : baseTheme;
 
-    return {
-      ...updated,
-      _import_summary: {
-        source_url: body.data.url,
-        pages_scraped: scrape.pages.length,
-        sections_found: scrape.pages.reduce((n, p) => n + p.sections.length, 0),
-        pages_generated: parsed.data.pages.length,
-        blocks_generated: parsed.data.pages.reduce((n, p) => n + p.sections.length, 0),
-        gaps,
-      },
+    let updated;
+    try {
+      const now = new Date();
+      updated = await db
+        .updateTable("sites")
+        .set({
+          spec: JSON.stringify(parsed.data),
+          theme: JSON.stringify(theme),
+          theme_preset: body.data.theme_preset ?? null,
+          brand_kit: brandKit ? JSON.stringify(brandKit) : null,
+          generation_prompt: `Imported from ${body.data.url}`,
+          updated_at: now,
+          draft_updated_at: now,
+          ...(site.published_at ? {} : { published_at: now }),
+        })
+        .where("id", "=", id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      if (body.data.gmb_profile) {
+        const p = body.data.gmb_profile;
+        const profileFields = {
+          biz_name: p.biz_name ?? null,
+          phone: p.phone ?? null,
+          address: p.address ?? null,
+          city: p.city ?? null,
+          state: p.state ?? null,
+          zip: p.zip ?? null,
+          country: p.country ?? "US",
+          website_url: p.website_url ?? null,
+          hours: p.hours ?? null,
+        };
+        const existing = await db
+          .selectFrom("business_profiles")
+          .select("id")
+          .where("site_id", "=", id)
+          .executeTakeFirst();
+
+        if (existing) {
+          await db.updateTable("business_profiles")
+            .set({ ...profileFields, updated_at: now } satisfies BusinessProfileUpdate)
+            .where("site_id", "=", id)
+            .execute();
+        } else {
+          await db.insertInto("business_profiles")
+            .values({ site_id: id, ...profileFields } satisfies NewBusinessProfile)
+            .execute();
+        }
+      }
+    } catch (err) {
+      sseWrite(reply, "error", { message: `Failed to save site: ${(err as Error).message}` });
+      reply.raw.end();
+      return reply;
+    }
+
+    const summary = {
+      source_url: body.data.url,
+      pages_scraped: scrape.pages.length,
+      sections_found: scrape.pages.reduce((n, p) => n + p.sections.length, 0),
+      pages_generated: parsed.data.pages.length,
+      blocks_generated: parsed.data.pages.reduce((n, p) => n + p.sections.length, 0),
+      gaps: [...new Set(allGaps)],
     };
+
+    sseWrite(reply, "complete", { site: updated, summary });
+    reply.raw.end();
+    return reply;
   });
 };

@@ -1,4 +1,25 @@
 export const BLOCK_CSS = `
+/* ── section background variants ── */
+.section-bg--muted {
+  --color-bg: var(--color-muted);
+  --color-surface: #ffffff;
+}
+.section-bg--dark {
+  --color-bg: #111827;
+  --color-surface: #1f2937;
+  --color-fg: #f9fafb;
+  --color-muted-fg: rgba(249,250,251,0.65);
+  --color-border: rgba(249,250,251,0.12);
+  --color-primary-fg: #ffffff;
+}
+.section-bg--primary {
+  --color-bg: var(--color-primary);
+  --color-surface: rgba(0,0,0,0.15);
+  --color-fg: var(--color-primary-fg);
+  --color-muted-fg: rgba(255,255,255,0.75);
+  --color-border: rgba(255,255,255,0.2);
+}
+
 /* ── nav ── */
 .site-nav {
   position: sticky;
@@ -203,6 +224,39 @@ export const BLOCK_CSS = `
   padding: 0.25rem 0.625rem;
   border-radius: 999px;
   margin-bottom: 0.75rem;
+}
+
+/* programs media layout */
+.block-programs--media .block-programs__media-list { display: flex; flex-direction: column; gap: 3rem; }
+.block-programs--media .block-programs__media-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+.block-programs--media .block-programs__media-img {
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 4/3;
+  background: var(--color-muted);
+}
+.block-programs--media .block-programs__media-img img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.block-programs--media .block-programs__media-img--empty { min-height: 240px; }
+.block-programs--media .block-programs__media-body h3 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+.block-programs--media .block-programs__media-body p { color: var(--color-muted-fg); font-size: 0.9375rem; line-height: 1.7; }
+.block-programs--media .btn-link {
+  display: inline-block;
+  margin-top: 1rem;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+.block-programs--media .btn-link:hover { text-decoration: underline; }
+@media (max-width: 768px) {
+  .block-programs--media .block-programs__media-item { grid-template-columns: 1fr; gap: 1.5rem; }
 }
 
 /* ── pricing ── */

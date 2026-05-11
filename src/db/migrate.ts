@@ -66,6 +66,9 @@ const sql = `
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme_preset TEXT;
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS published_theme JSONB;
 
+  -- Phase 8: Brand kit (colors, fonts, logo — separate from layout preset)
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS brand_kit JSONB;
+
   -- Phase 7: Media asset storage
   CREATE TABLE IF NOT EXISTS assets (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

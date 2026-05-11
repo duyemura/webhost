@@ -24,9 +24,14 @@ export async function putFile(key: string, body: Buffer, contentType: string): P
   await r2.send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType }));
 }
 
-export async function getFile(key: string): Promise<GetObjectCommandOutput["Body"]> {
-  const obj = await r2.send(new GetObjectCommand({ Bucket, Key: key }));
-  return obj.Body;
+export async function getFile(key: string): Promise<GetObjectCommandOutput["Body"] | null> {
+  try {
+    const obj = await r2.send(new GetObjectCommand({ Bucket, Key: key }));
+    return obj.Body ?? null;
+  } catch (err) {
+    if ((err as { name?: string }).name === "NoSuchKey") return null;
+    throw err;
+  }
 }
 
 export async function deleteFile(key: string): Promise<void> {

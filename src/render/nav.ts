@@ -7,7 +7,8 @@ export function buildNav(spec: SiteSpec, _theme: Theme, siteName: string, reques
   const links = pages.map(p => {
     const href = `/${p.slug}`;
     const active = requestPath === href || requestPath.startsWith(`/${p.slug}/`);
-    return `<li><a href="${esc(href)}"${active ? ' aria-current="page"' : ""}>${esc(p.title)}</a></li>`;
+    const label = p.nav_label || p.title;
+    return `<li><a href="${esc(href)}"${active ? ' aria-current="page"' : ""}>${esc(label)}</a></li>`;
   }).join("\n");
 
   const hasContact = spec.pages.some(p => p.slug === "contact");

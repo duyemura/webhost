@@ -37,6 +37,7 @@ export interface SiteSection {
 export interface SitePage {
   slug: string;
   title: string;
+  nav_label?: string;
   meta_description: string;
   sections: SiteSection[];
 }
@@ -51,6 +52,8 @@ export interface BlockDefinition {
   schema: z.ZodTypeAny;
   render: (section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null) => string;
   aiSchema: object;
+  /** Writing/content rules injected into the AI prompt for this block type. */
+  copyGuidelines?: string;
 }
 
 export const DEFAULT_THEME: Theme = {

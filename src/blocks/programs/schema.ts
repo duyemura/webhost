@@ -11,6 +11,7 @@ const schema = z.object({
   items: z.array(z.object({
     name: z.string().max(100),
     description: z.string().max(600),
+    image_url: z.string().optional(),
     tag: z.string().max(50).optional(),
     cta: z.object({ text: z.string(), url: z.string() }).optional(),
   })).min(1).max(9),
@@ -26,7 +27,7 @@ export const programsBlock: BlockDefinition = {
       eyebrow: "string (optional)",
       headline: "string (optional, use \\n for line breaks)",
       subheadline: "string (optional, body text shown right of headline in dark-industrial)",
-      items: "Array<{ name, description, tag?, cta?: { text, url } }> (1–9)",
+      items: "Array<{ name, description, image_url?: string, tag?, cta?: { text, url } }> (1–9 items; set image_url to a downloaded image URL when one is available for that program)",
     },
   },
 };

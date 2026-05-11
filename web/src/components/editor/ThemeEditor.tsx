@@ -1,8 +1,8 @@
 import React from "react";
 import { Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Button } from "@pushpress/pushpress-ui";
-import { RotateCcw, History } from "lucide-react";
+import { RotateCcw, History, Upload, ImageIcon } from "lucide-react";
 import { colorToHex } from "../../lib/editor";
-import type { Theme } from "../../api";
+import type { Theme, BrandKit } from "../../api";
 
 const COLOR_LABELS: Record<keyof Theme["colors"], string> = {
   primary: "Primary",
@@ -35,6 +35,10 @@ const PADDING_OPTIONS: { value: Theme["spacing"]["section_padding"]; label: stri
 interface ThemeEditorProps {
   theme: Theme;
   onChange: (theme: Theme) => void;
+  brandKit?: BrandKit | null;
+  onBrandKitChange?: (kit: BrandKit) => void;
+  onLogoUpload?: (file: File) => Promise<string | null>;
+  onFaviconUpload?: (file: File) => Promise<string | null>;
   preset?: Theme;
   presetName?: string;
   publishedTheme?: Theme | null;
@@ -58,6 +62,10 @@ function themesDiffer(a: Theme, b: Theme): boolean {
 export function ThemeEditor({
   theme,
   onChange,
+  brandKit,
+  onBrandKitChange,
+  onLogoUpload,
+  onFaviconUpload,
   preset,
   presetName,
   publishedTheme,
@@ -85,8 +93,145 @@ export function ThemeEditor({
     onChange({ ...theme, typography: { ...theme.typography, [key]: preset.typography[key] } });
   }
 
+  function setBrandColor(key: keyof Pick<BrandKit, "primary" | "primary_foreground" | "secondary" | "background" | "foreground" | "accent">, hex: string) {
+    if (!brandKit || !onBrandKitChange) return;
+    onBrandKitChange({ ...brandKit, [key]: hex });
+  }
+
+  function setBrandFont(key: "heading_font" | "body_font", value: string) {
+    if (!brandKit || !onBrandKitChange) return;
+    onBrandKitChange({ ...brandKit, [key]: value });
+  }
+
+  const [logoUploading, setLogoUploading] = React.useState(false);
+  const [faviconUploading, setFaviconUploading] = React.useState(false);
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !onLogoUpload || !brandKit || !onBrandKitChange) return;
+    setLogoUploading(true);
+    try {
+      const url = await onLogoUpload(file);
+      if (url) onBrandKitChange({ ...brandKit, logo_url: url });
+    } finally {
+      setLogoUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleFaviconFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !onFaviconUpload || !brandKit || !onBrandKitChange) return;
+    setFaviconUploading(true);
+    try {
+      const url = await onFaviconUpload(file);
+      if (url) onBrandKitChange({ ...brandKit, favicon_url: url });
+    } finally {
+      setFaviconUploading(false);
+      e.target.value = "";
+    }
+  }
+
   return (
     <div className="tw-space-y-5">
+      {/* Brand kit */}
+      {brandKit && onBrandKitChange && (
+        <div>
+          <p className="tw-text-xs tw-font-semibold tw-text-muted-foreground tw-uppercase tw-tracking-wide tw-mb-2">
+            Brand
+          </p>
+          <div className="tw-space-y-3">
+            {/* Logo */}
+            <div className="tw-flex tw-items-center tw-gap-3">
+              <div className="tw-h-10 tw-w-10 tw-rounded tw-border tw-border-border tw-bg-muted tw-flex tw-items-center tw-justify-center tw-overflow-hidden tw-shrink-0">
+                {brandKit.logo_url
+                  ? <img src={brandKit.logo_url} alt="Logo" className="tw-h-full tw-w-full tw-object-contain" />
+                  : <ImageIcon className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
+                }
+              </div>
+              <div className="tw-flex-1">
+                <p className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-1">Logo</p>
+                <label className="tw-flex tw-items-center tw-gap-1.5 tw-cursor-pointer tw-text-xs tw-text-muted-foreground hover:tw-text-foreground">
+                  <Upload className="tw-h-3 tw-w-3" />
+                  {logoUploading ? "Uploading…" : brandKit.logo_url ? "Replace logo" : "Upload logo"}
+                  <input type="file" accept="image/*" className="tw-hidden" onChange={handleLogoFile} disabled={logoUploading} />
+                </label>
+              </div>
+              {brandKit.logo_url && (
+                <button
+                  type="button"
+                  onClick={() => onBrandKitChange({ ...brandKit, logo_url: null })}
+                  className="tw-text-xs tw-text-muted-foreground hover:tw-text-foreground"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+
+            {/* Favicon */}
+            <div className="tw-flex tw-items-center tw-gap-3">
+              <div className="tw-h-10 tw-w-10 tw-rounded tw-border tw-border-border tw-bg-muted tw-flex tw-items-center tw-justify-center tw-overflow-hidden tw-shrink-0">
+                {brandKit.favicon_url
+                  ? <img src={brandKit.favicon_url} alt="Favicon" className="tw-h-6 tw-w-6 tw-object-contain" />
+                  : <ImageIcon className="tw-h-3 tw-w-3 tw-text-muted-foreground" />
+                }
+              </div>
+              <div className="tw-flex-1">
+                <p className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-1">Favicon</p>
+                <label className="tw-flex tw-items-center tw-gap-1.5 tw-cursor-pointer tw-text-xs tw-text-muted-foreground hover:tw-text-foreground">
+                  <Upload className="tw-h-3 tw-w-3" />
+                  {faviconUploading ? "Uploading…" : brandKit.favicon_url ? "Replace favicon" : "Upload favicon"}
+                  <input type="file" accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg" className="tw-hidden" onChange={handleFaviconFile} disabled={faviconUploading} />
+                </label>
+              </div>
+              {brandKit.favicon_url && (
+                <button
+                  type="button"
+                  onClick={() => onBrandKitChange({ ...brandKit, favicon_url: null })}
+                  className="tw-text-xs tw-text-muted-foreground hover:tw-text-foreground"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+
+            {/* Brand colors */}
+            {(["primary", "secondary", "background", "foreground", "accent"] as const).map(key => (
+              <div key={key} className="tw-flex tw-items-center tw-gap-3">
+                <input
+                  type="color"
+                  value={brandKit[key]}
+                  onChange={e => setBrandColor(key, e.target.value)}
+                  className="tw-h-7 tw-w-7 tw-rounded tw-border tw-border-border tw-cursor-pointer tw-p-0.5 tw-bg-transparent tw-shrink-0"
+                />
+                <span className="tw-flex-1 tw-text-xs tw-text-foreground tw-capitalize">{key.replace("_", " ")}</span>
+                <span className="tw-text-xs tw-font-mono tw-text-muted-foreground">{brandKit[key]}</span>
+              </div>
+            ))}
+
+            {/* Fonts */}
+            <div className="tw-space-y-1.5">
+              <Label className="tw-text-xs">Heading font</Label>
+              <Input
+                value={brandKit.heading_font}
+                onChange={e => setBrandFont("heading_font", e.target.value)}
+                placeholder="Inter"
+                className="tw-h-8 tw-text-xs"
+              />
+            </div>
+            <div className="tw-space-y-1.5">
+              <Label className="tw-text-xs">Body font</Label>
+              <Input
+                value={brandKit.body_font}
+                onChange={e => setBrandFont("body_font", e.target.value)}
+                placeholder="Inter"
+                className="tw-h-8 tw-text-xs"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Level 2: Reset all to preset */}
       {preset && hasPresetChanges && (
         <div className="tw-flex tw-items-center tw-justify-between tw-py-2 tw-px-3 tw-bg-warning/10 tw-border tw-border-warning/30 tw-rounded-md">

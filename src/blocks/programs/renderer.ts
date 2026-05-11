@@ -8,7 +8,7 @@ interface ProgramsFields {
   eyebrow?: string;
   headline?: string;
   subheadline?: string;
-  items: { name: string; description: string; tag?: string; cta?: { text: string; url: string } }[];
+  items: { name: string; description: string; image_url?: string; tag?: string; cta?: { text: string; url: string } }[];
 }
 
 export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
@@ -18,8 +18,35 @@ export function render(section: Record<string, unknown>, theme: Theme, profile: 
 
 function renderDefault(section: Record<string, unknown>, profile: BusinessProfile | null): string {
   const s = section as unknown as ProgramsFields;
-  const cols = s.items.length <= 2 ? s.items.length : 3;
+  const hasImages = s.items.some(item => item.image_url);
 
+  if (hasImages) {
+    // Media layout: image left, content right, stacked rows
+    return `<section class="block-programs block-programs--media">
+  <div class="container">
+    ${s.headline || s.subheadline ? `<div class="section-header">
+      ${s.eyebrow ? `<p class="eyebrow">${esc(interpolate(s.eyebrow, profile))}</p>` : ""}
+      ${s.headline ? `<h2>${esc(interpolate(s.headline, profile))}</h2>` : ""}
+      ${s.subheadline ? `<p>${esc(interpolate(s.subheadline, profile))}</p>` : ""}
+    </div>` : ""}
+    <div class="block-programs__media-list">
+      ${s.items.map(item => `<div class="block-programs__media-item">
+        ${item.image_url ? `<div class="block-programs__media-img">
+          <img src="${esc(item.image_url)}" alt="${esc(item.name)}" loading="lazy">
+        </div>` : `<div class="block-programs__media-img block-programs__media-img--empty"></div>`}
+        <div class="block-programs__media-body">
+          ${item.tag ? `<span class="block-programs__tag">${esc(item.tag)}</span>` : ""}
+          <h3>${esc(interpolate(item.name, profile))}</h3>
+          <p>${esc(interpolate(item.description, profile))}</p>
+          ${item.cta ? `<a href="${esc(item.cta.url)}" class="btn-link">${esc(item.cta.text)}</a>` : ""}
+        </div>
+      </div>`).join("\n")}
+    </div>
+  </div>
+</section>`;
+  }
+
+  const cols = s.items.length <= 2 ? s.items.length : 3;
   return `<section class="block-programs">
   <div class="container">
     ${s.headline || s.subheadline ? `<div class="section-header">

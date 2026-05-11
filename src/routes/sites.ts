@@ -4,6 +4,7 @@ import { db } from "../db/client.js";
 import { config } from "../config.js";
 import { slugify } from "../auth.js";
 import { deletePrefix } from "../lib/r2.js";
+import { removeAllAssets } from "../lib/storage.js";
 import { provisionHostname, deprovisionHostname, getHostnameStatus } from "../lib/cloudflare.js";
 
 const createBody = z.object({
@@ -160,13 +161,17 @@ export const sitesRoutes: FastifyPluginAsync = async (app) => {
 
     await db.deleteFrom("sites").where("id", "=", id).execute();
 
-    // Clean up Cloudflare and R2 in parallel
-    await Promise.all([
-      site.cloudflare_hostname_id
-        ? deprovisionHostname(site.cloudflare_hostname_id).catch(() => {})
-        : Promise.resolve(),
+    // Clean up Cloudflare, published files, and assets in parallel — don't fail the 204 if cleanup errors
+    const cleanupResults = await Promise.allSettled([
+      site.cloudflare_hostname_id ? deprovisionHostname(site.cloudflare_hostname_id) : Promise.resolve(),
       deletePrefix(`live/${id}/`),
+      removeAllAssets(id),
     ]);
+    for (const result of cleanupResults) {
+      if (result.status === "rejected") {
+        req.log.error({ err: result.reason, siteId: id }, "site cleanup step failed after DB delete");
+      }
+    }
 
     return reply.status(204).send();
   });

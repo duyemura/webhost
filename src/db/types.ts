@@ -34,6 +34,7 @@ export interface SitesTable {
   generation_prompt: string | null;
   theme_preset: string | null;
   published_theme: unknown | null;
+  brand_kit: unknown | null;
 }
 
 export type User = Selectable<UsersTable>;
@@ -86,7 +87,8 @@ export type AllowedMimeType =
   | "image/png"
   | "image/webp"
   | "image/gif"
-  | "image/svg+xml"
+  | "image/x-icon"
+  | "image/vnd.microsoft.icon"
   | "video/mp4"
   | "video/webm";
 

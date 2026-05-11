@@ -6,7 +6,8 @@ import type { AllowedMimeType } from "../db/types.js";
 import { storeAsset, removeAsset, readAsset } from "../lib/storage.js";
 
 const ALLOWED_MIME = new Set([
-  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml",
+  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "image/x-icon", "image/vnd.microsoft.icon",
   "video/mp4", "video/webm",
 ]);
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -18,7 +19,7 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Public — no auth, needed for <img> tags in site HTML
-  app.get("/api/sites/:siteId/assets/:filename", async (req, reply) => {
+  app.get("/api/sites/:siteId/assets/:filename", { onRequest: [] as [] }, async (req, reply) => {
     const { siteId, filename } = req.params as { siteId: string; filename: string };
 
     if (!/^[a-zA-Z0-9_-]+\.[a-z0-9]+$/.test(filename)) return reply.notFound();
@@ -38,11 +39,6 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
     reply.header("Content-Type", asset.mime_type);
     reply.header("Cache-Control", result.cacheControl);
     reply.header("X-Content-Type-Options", "nosniff");
-    // Serve SVGs as attachments to prevent script execution in the dashboard origin
-    if (asset.mime_type === "image/svg+xml") {
-      reply.header("Content-Disposition", "attachment");
-      reply.header("Content-Security-Policy", "default-src 'none'");
-    }
     return reply.send(result.body);
   });
 
@@ -88,10 +84,10 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
 
     const mime = data.mimetype;
     if (!ALLOWED_MIME.has(mime)) {
-      return reply.badRequest("File type not allowed. Supported: JPEG, PNG, WebP, GIF, SVG, MP4, WebM.");
+      return reply.badRequest("File type not allowed. Supported: JPEG, PNG, WebP, GIF, ICO, MP4, WebM.");
     }
 
-    const ext = mime.split("/")[1]!.replace("jpeg", "jpg").replace("svg+xml", "svg");
+    const ext = mime.split("/")[1]!.replace("jpeg", "jpg").replace("x-icon", "ico").replace("vnd.microsoft.icon", "ico");
     const filename = `${crypto.randomUUID()}.${ext}`;
     const buffer = await data.toBuffer();
 

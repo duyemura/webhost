@@ -111,7 +111,7 @@ function CreateSiteDialog({
   const [customSlug, setCustomSlug] = useState("");
 
   // Step 2: build mode
-  const [mode, setMode] = useState<BuildMode>("generate");
+  const [mode, setMode] = useState<BuildMode>("import");
   const [theme, setTheme] = useState<ThemePreset>("bold");
 
   // GMB search state
@@ -458,32 +458,50 @@ function CreateSiteDialog({
         {/* Step 2: Build mode */}
         {step === 2 && (
           <div className="tw-space-y-4">
-            {/* Mode picker */}
-            <div className="tw-grid tw-grid-cols-3 tw-gap-2">
-              {(
-                [
-                  { id: "generate", icon: Wand2, label: "Generate with AI", desc: "Describe your business" },
-                  { id: "import", icon: Import, label: "Import existing site", desc: "Scan my current website" },
-                  { id: "blank", icon: FileEdit, label: "Start blank", desc: "Use the block editor" },
-                ] as { id: BuildMode; icon: React.ElementType; label: string; desc: string }[]
-              ).map(({ id, icon: Icon, label, desc }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setMode(id)}
-                  className={`tw-flex tw-flex-col tw-items-center tw-gap-1.5 tw-rounded-lg tw-border tw-p-3 tw-text-center tw-transition-all ${
-                    mode === id
-                      ? "tw-border-foreground tw-bg-foreground/5"
-                      : "tw-border-border hover:tw-border-foreground/40"
-                  }`}
-                >
-                  <Icon className={`tw-h-5 tw-w-5 ${mode === id ? "tw-text-foreground" : "tw-text-muted-foreground"}`} />
-                  <p className={`tw-text-xs tw-font-medium tw-leading-tight ${mode === id ? "tw-text-foreground" : "tw-text-muted-foreground"}`}>
-                    {label}
+            {/* Mode picker — import is primary, AI + blank are secondary fallbacks */}
+            <div className="tw-space-y-2">
+              <button
+                type="button"
+                onClick={() => setMode("import")}
+                className={`tw-w-full tw-flex tw-items-center tw-gap-3 tw-rounded-lg tw-border tw-px-4 tw-py-3 tw-text-left tw-transition-all ${
+                  mode === "import"
+                    ? "tw-border-foreground tw-bg-foreground/5"
+                    : "tw-border-border hover:tw-border-foreground/40"
+                }`}
+              >
+                <Import className={`tw-h-5 tw-w-5 tw-shrink-0 ${mode === "import" ? "tw-text-foreground" : "tw-text-muted-foreground"}`} />
+                <div>
+                  <p className={`tw-text-sm tw-font-medium ${mode === "import" ? "tw-text-foreground" : "tw-text-muted-foreground"}`}>
+                    Import existing site
                   </p>
-                  <p className="tw-text-xs tw-text-muted-foreground tw-leading-tight">{desc}</p>
-                </button>
-              ))}
+                  <p className="tw-text-xs tw-text-muted-foreground">Find your business on Google and scan your current website</p>
+                </div>
+              </button>
+              <div className="tw-grid tw-grid-cols-2 tw-gap-2">
+                {(
+                  [
+                    { id: "generate", icon: Wand2, label: "Generate with AI", desc: "Describe your business" },
+                    { id: "blank", icon: FileEdit, label: "Start blank", desc: "Use the block editor" },
+                  ] as { id: BuildMode; icon: React.ElementType; label: string; desc: string }[]
+                ).map(({ id, icon: Icon, label, desc }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMode(id)}
+                    className={`tw-flex tw-flex-col tw-items-center tw-gap-1 tw-rounded-lg tw-border tw-p-2.5 tw-text-center tw-transition-all ${
+                      mode === id
+                        ? "tw-border-foreground tw-bg-foreground/5"
+                        : "tw-border-border hover:tw-border-foreground/40"
+                    }`}
+                  >
+                    <Icon className={`tw-h-4 tw-w-4 ${mode === id ? "tw-text-foreground" : "tw-text-muted-foreground"}`} />
+                    <p className={`tw-text-xs tw-font-medium tw-leading-tight ${mode === id ? "tw-text-foreground" : "tw-text-muted-foreground"}`}>
+                      {label}
+                    </p>
+                    <p className="tw-text-xs tw-text-muted-foreground tw-leading-tight">{desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Import: GMB search */}
@@ -497,9 +515,9 @@ function CreateSiteDialog({
                       <Search className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground tw-pointer-events-none" />
                       <Input
                         id="gmb-search"
-                        placeholder="Speakeasy of Strength NYC"
+                        placeholder="Iron Peak CrossFit Denver"
                         value={gmbQuery}
-                        onChange={(e) => setGmbQuery(e.target.value)}
+                        onChange={(e) => { setGmbQuery(e.target.value); setGmbResults([]); }}
                         className="tw-pl-9"
                         autoFocus
                         disabled={isPending}
@@ -507,29 +525,30 @@ function CreateSiteDialog({
                       {gmbSearching && (
                         <Loader2 className="tw-absolute tw-right-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
                       )}
+                      {/* Results dropdown — floats above modal content */}
+                      {gmbResults.length > 0 && (
+                        <div className="tw-absolute tw-left-0 tw-right-0 tw-top-full tw-mt-1 tw-rounded-lg tw-border tw-border-border tw-bg-background tw-shadow-lg tw-divide-y tw-divide-border tw-overflow-hidden" style={{ zIndex: 9999 }}>
+                          {gmbResults.map(r => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => handleSelectPlace(r)}
+                              className="tw-w-full tw-text-left tw-px-3 tw-py-2.5 tw-bg-background hover:tw-bg-muted tw-transition-colors"
+                            >
+                              <p className="tw-text-sm tw-font-medium tw-text-foreground">{r.name}</p>
+                              <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{r.address}</p>
+                              {!r.website && (
+                                <p className="tw-text-xs tw-text-warning tw-mt-0.5">No website listed</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="tw-text-xs tw-text-muted-foreground">
-                      We&apos;ll pull your business info from Google and scan your website automatically.
-                    </p>
-
-                    {/* Results dropdown */}
-                    {gmbResults.length > 0 && (
-                      <div className="tw-rounded-lg tw-border tw-border-border tw-divide-y tw-divide-border tw-overflow-hidden">
-                        {gmbResults.map(r => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={() => handleSelectPlace(r)}
-                            className="tw-w-full tw-text-left tw-px-3 tw-py-2.5 tw-bg-background hover:tw-bg-muted tw-transition-colors"
-                          >
-                            <p className="tw-text-sm tw-font-medium tw-text-foreground">{r.name}</p>
-                            <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{r.address}</p>
-                            {!r.website && (
-                              <p className="tw-text-xs tw-text-warning tw-mt-0.5">No website listed</p>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+                    {!gmbResults.length && (
+                      <p className="tw-text-xs tw-text-muted-foreground">
+                        We&apos;ll pull your business info from Google and scan your website automatically.
+                      </p>
                     )}
 
                     {/* Manual URL fallback */}

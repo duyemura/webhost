@@ -24,7 +24,8 @@ async function serveSite(
   requestUrl: string,
   reply: any,
 ): Promise<void> {
-  const requestPath = requestUrl.split("?")[0];
+  const [requestPath, qs] = requestUrl.split("?");
+  const debug = new URLSearchParams(qs).get("debug") === "blocks";
 
   if (requestPath === "/sitemap.xml" && site.spec) {
     const xml = buildSpecSitemap(site, site.spec as SiteSpec);
@@ -53,7 +54,7 @@ async function serveSite(
       .executeTakeFirst(),
   ]);
 
-  const html = await renderSpecPage(site, profile ?? null, scripts, requestPath);
+  const html = await renderSpecPage(site, profile ?? null, scripts, requestPath, debug);
   if (!html) {
     reply.header("Content-Type", "text/html; charset=utf-8");
     reply.status(404).send(NOT_FOUND_HTML);

@@ -12,14 +12,9 @@ const ALLOWED_MIME = new Set([
 ]);
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
 
-export const assetsRoutes: FastifyPluginAsync = async (app) => {
-  await app.register(multipart, {
-    limits: { fileSize: MAX_BYTES },
-    throwFileSizeLimit: true,
-  });
-
-  // Public — no auth, needed for <img> tags in site HTML
-  app.get("/api/sites/:siteId/assets/:filename", { onRequest: [] as [] }, async (req, reply) => {
+// Public asset serve — own plugin so no auth hook touches it
+export const publicAssetRoute: FastifyPluginAsync = async (app) => {
+  app.get("/api/sites/:siteId/assets/:filename", async (req, reply) => {
     const { siteId, filename } = req.params as { siteId: string; filename: string };
 
     if (!/^[a-zA-Z0-9_-]+\.[a-z0-9]+$/.test(filename)) return reply.notFound();
@@ -41,8 +36,14 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
     reply.header("X-Content-Type-Options", "nosniff");
     return reply.send(result.body);
   });
+};
 
-  // Auth-required routes below
+export const assetsRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(multipart, {
+    limits: { fileSize: MAX_BYTES },
+    throwFileSizeLimit: true,
+  });
+
   app.addHook("onRequest", app.authenticate);
 
   app.get("/api/sites/:id/assets", async (req, reply) => {

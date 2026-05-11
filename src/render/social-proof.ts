@@ -27,6 +27,12 @@ export function buildSocialProofBar(profile: BusinessProfile | null): string {
   if (profile.phone) {
     items.push(profile.phone);
   }
+  // Fallback: show clean domain name so the bar always has enough items
+  if (profile.website_url && items.length < 2) {
+    try {
+      items.push(new URL(profile.website_url).hostname.replace(/^www\./, ""));
+    } catch { /* ignore invalid URLs */ }
+  }
 
   // Inject up to 3 review snippets (truncated to ~80 chars)
   if (Array.isArray(profile.gmb_reviews)) {

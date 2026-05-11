@@ -12,6 +12,7 @@ import { extractBrandSignals, extractBrandKit, applyBrandKitToTheme, downloadSit
 import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
 import { logAiCall, logCostEvent } from "../lib/ai-logger.js";
 import { fetchInstructions, mergeInstructions } from "../lib/block-instructions.js";
+import { getCachedCrawl, setCachedCrawl } from "../lib/crawl-cache.js";
 
 const gmbProfileSchema = z.object({
   biz_name: z.string().max(200).optional(),
@@ -63,7 +64,19 @@ export interface DownloadedImage {
   sectionHint: string;
 }
 
-function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[]): string {
+interface GmbFacts {
+  biz_name?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  hours?: string | null;
+  gmb_rating?: number | null;
+  gmb_review_count?: number | null;
+  gmb_reviews?: { author: string; rating: number; text: string }[] | null;
+}
+
+function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[], gmb?: GmbFacts): string {
   const lines: string[] = [
     `Site: ${siteName}`,
     `Page: ${page.title || page.slug}`,
@@ -71,6 +84,27 @@ function buildPageUserMessage(page: ScrapedPage, siteName: string, images: Downl
     `Sections found: ${page.sections.length}`,
     "",
   ];
+
+  // Verified GMB facts — inject on every page so AI can reference real data
+  if (gmb) {
+    lines.push("Verified business facts (from Google Maps — use these as ground truth):");
+    if (gmb.biz_name) lines.push(`  Business name: ${gmb.biz_name}`);
+    if (gmb.address) lines.push(`  Address: ${gmb.address}`);
+    if (gmb.city && gmb.state) lines.push(`  Location: ${gmb.city}, ${gmb.state}`);
+    if (gmb.phone) lines.push(`  Phone: ${gmb.phone}`);
+    if (gmb.hours) lines.push(`  Hours:\n${gmb.hours.split("\n").map(l => `    ${l}`).join("\n")}`);
+    if (gmb.gmb_rating != null) lines.push(`  Google rating: ${gmb.gmb_rating.toFixed(1)} stars`);
+    if (gmb.gmb_review_count != null) lines.push(`  Total reviews: ${gmb.gmb_review_count.toLocaleString()}`);
+    if (gmb.gmb_reviews?.length) {
+      lines.push("  Top reviews:");
+      for (const r of gmb.gmb_reviews.slice(0, 3)) {
+        const stars = "★".repeat(Math.min(5, Math.round(r.rating)));
+        lines.push(`    ${stars} "${r.text.slice(0, 120)}"`);
+      }
+    }
+    lines.push("Use {{business.name}}, {{business.phone}}, {{business.address}}, {{business.hours}}, {{business.city}}, {{business.state}} tokens for personalizable fields.");
+    lines.push("");
+  }
 
   // Include downloaded images available for this page
   const pageImages = images.filter(img => img.pageSlug === page.slug);
@@ -175,9 +209,9 @@ interface PageResult {
   costEventId: string | null;
 }
 
-async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
+async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
   const toolSchema = buildPageToolSchema(instructions);
-  const userMessage = buildPageUserMessage(page, siteName, images);
+  const userMessage = buildPageUserMessage(page, siteName, images, gmb);
   const model = "claude-sonnet-4-6";
   const maxTokens = 4000;
   const msgs = [{ role: "user" as const, content: userMessage }];
@@ -257,16 +291,23 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       "X-Accel-Buffering": "no",
     });
 
-    // 1. Scrape with live events
+    // 1. Scrape — use cache if available (3-day TTL)
     let scrape: ScrapeResult;
-    try {
-      scrape = await scrapeWebsite(body.data.url, (e) => {
-        sseWrite(reply, e.type, e);
-      });
-    } catch (err) {
-      sseWrite(reply, "error", { message: (err as Error).message });
-      reply.raw.end();
-      return reply;
+    const cachedScrape = await getCachedCrawl(body.data.url);
+    if (cachedScrape) {
+      scrape = cachedScrape;
+      sseWrite(reply, "scrape_cached", { pages: scrape.pages.length, url: body.data.url });
+    } else {
+      try {
+        scrape = await scrapeWebsite(body.data.url, (e) => {
+          sseWrite(reply, e.type, e);
+        });
+      } catch (err) {
+        sseWrite(reply, "error", { message: (err as Error).message });
+        reply.raw.end();
+        return reply;
+      }
+      void setCachedCrawl(body.data.url, scrape);
     }
 
     // 2. Extract brand kit from home page HTML
@@ -356,7 +397,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
         let result: PageResult;
         try {
-          result = await processPage(page, slug, scrape.site_name, downloadedImages, instructions, id);
+          result = await processPage(page, slug, scrape.site_name, downloadedImages, instructions, body.data.gmb_profile, id);
         } finally {
           clearInterval(heartbeat);
         }
@@ -413,21 +454,23 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      if (body.data.gmb_profile) {
+      // Always upsert a profile — GMB data when available, scraped fallback otherwise.
+      // The social proof bar needs at least a profile row to render.
+      {
         const p = body.data.gmb_profile;
         const profileFields = {
-          biz_name: p.biz_name ?? null,
-          phone: p.phone ?? null,
-          address: p.address ?? null,
-          city: p.city ?? null,
-          state: p.state ?? null,
-          zip: p.zip ?? null,
-          country: p.country ?? "US",
-          website_url: p.website_url ?? null,
-          hours: p.hours ?? null,
-          gmb_rating: p.gmb_rating ?? null,
-          gmb_review_count: p.gmb_review_count ?? null,
-          gmb_reviews: p.gmb_reviews ? JSON.stringify(p.gmb_reviews) : null,
+          biz_name: p?.biz_name || scrape.site_name || null,
+          phone: p?.phone ?? null,
+          address: p?.address ?? null,
+          city: p?.city ?? null,
+          state: p?.state ?? null,
+          zip: p?.zip ?? null,
+          country: p?.country ?? "US",
+          website_url: p?.website_url ?? body.data.url,
+          hours: p?.hours ?? null,
+          gmb_rating: p?.gmb_rating ?? null,
+          gmb_review_count: p?.gmb_review_count ?? null,
+          gmb_reviews: p?.gmb_reviews ? JSON.stringify(p.gmb_reviews) : null,
         };
         const existing = await db
           .selectFrom("business_profiles")

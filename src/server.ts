@@ -19,7 +19,7 @@ import { generateRoutes } from "./routes/generate.js";
 import { importRoutes } from "./routes/import.js";
 import { templatesRoutes } from "./routes/templates.js";
 import { placesRoutes } from "./routes/places.js";
-import { assetsRoutes } from "./routes/assets.js";
+import { assetsRoutes, publicAssetRoute } from "./routes/assets.js";
 import { aiAnalyticsRoutes } from "./routes/ai-analytics.js";
 import { siteServer } from "./plugins/site-server.js";
 
@@ -63,6 +63,7 @@ await app.register(siteServer);
 
 app.get("/api/health", async () => ({ ok: true }));
 
+await app.register(publicAssetRoute);
 await app.register(authRoutes);
 await app.register(sitesRoutes);
 await app.register(scriptsRoutes);

@@ -187,6 +187,18 @@ const sql = `
     CONSTRAINT field_name_requires_block_type CHECK (field_name IS NULL OR block_type IS NOT NULL)
   );
   CREATE INDEX IF NOT EXISTS block_instructions_block_type_idx ON block_instructions(block_type) WHERE active = true;
+
+  -- Phase 11: Crawl cache — avoid re-scraping unchanged sites (3-day TTL)
+  CREATE TABLE IF NOT EXISTS crawl_cache (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    url_hash    TEXT NOT NULL UNIQUE,
+    url         TEXT NOT NULL,
+    data        JSONB NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at  TIMESTAMPTZ NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS crawl_cache_url_hash_idx  ON crawl_cache(url_hash);
+  CREATE INDEX IF NOT EXISTS crawl_cache_expires_at_idx ON crawl_cache(expires_at);
 `;
 
 const client = new pg.Client(config.db);

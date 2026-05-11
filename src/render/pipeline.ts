@@ -5,6 +5,7 @@ import type { BrandKit } from "../lib/brand.js";
 import { registry } from "../blocks/index.js";
 import { buildPage } from "./page.js";
 import { buildSocialProofBar } from "./social-proof.js";
+import { esc } from "./escape.js";
 
 function applyBrandKit(theme: Theme, brandKit: BrandKit): Theme {
   return {
@@ -30,7 +31,8 @@ export async function renderSpecPage(
   site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme" | "brand_kit">,
   profile: BusinessProfile | null,
   scripts: Script[],
-  requestPath: string
+  requestPath: string,
+  debug = false,
 ): Promise<string | null> {
   const spec = site.spec as SiteSpec;
   const baseTheme = (site.theme as Theme | null) ?? DEFAULT_THEME;
@@ -48,7 +50,10 @@ export async function renderSpecPage(
     .map(s => {
       const html = registry.render(s, theme, profile);
       const bg = (s as Record<string, unknown>).bg as string | undefined;
-      const wrapped = !bg || bg === "default" ? html : `<div class="section-bg--${bg}">${html}</div>`;
+      let wrapped = !bg || bg === "default" ? html : `<div class="section-bg--${bg}">${html}</div>`;
+      if (debug) {
+        wrapped = `<div style="position:relative">${wrapped}<span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.65);color:#fff;font:11px/1.4 monospace;padding:2px 7px;border-radius:4px;pointer-events:none;z-index:9999;letter-spacing:.04em;opacity:.85">${esc(s.type)}</span></div>`;
+      }
       if (s.type === "hero" && socialProofBar && !socialProofInjected) {
         socialProofInjected = true;
         return `${wrapped}\n${socialProofBar}`;

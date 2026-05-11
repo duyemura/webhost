@@ -122,15 +122,15 @@ function CreateSiteDialog({
   const pageSubstepRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Import state
-  const [importLog, setImportLog] = useState<string[]>([]);
+  const [importPhase, setImportPhase] = useState<"scraping" | "brand" | "building" | null>(null);
+  const [importPhaseLabel, setImportPhaseLabel] = useState<string | null>(null);
+  const [importPages, setImportPages] = useState<{ slug: string; label: string; status: "pending" | "active" | "done"; blocks?: number; substep?: string }[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [pageRatings, setPageRatings] = useState<PageRatingItem[]>([]);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [pendingSiteId, setPendingSiteId] = useState<string | null>(null);
-  const logEndRef = useRef<HTMLDivElement>(null);
 
   // GMB website takes priority; manual input is fallback
   const importUrl = selectedPlace?.website || importUrlManual;
@@ -146,11 +146,12 @@ function CreateSiteDialog({
     setSelectedPlace(null);
     setLoadingPlace(false);
       setImportUrlManual("");
-    setImportLog([]);
+    setImportPhase(null);
+    setImportPhaseLabel(null);
+    setImportPages([]);
     setImportSummary(null);
     setImportError(null);
     setIsImporting(false);
-    setAiStatus(null);
     setPageRatings([]);
     setRatingSubmitted(false);
     setPendingSiteId(null);
@@ -209,10 +210,6 @@ function CreateSiteDialog({
     onOpenChange(open);
   }
 
-  function addLog(line: string) {
-    setImportLog(prev => [...prev, line]);
-    setTimeout(() => logEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
-  }
 
   async function runImport(siteId: string) {
     const token = localStorage.getItem("token");
@@ -220,7 +217,6 @@ function CreateSiteDialog({
     importAbortRef.current = controller;
     setIsImporting(true);
     setImportError(null);
-    setImportLog([]);
     setPageRatings([]);
     setRatingSubmitted(false);
 
@@ -284,63 +280,85 @@ function CreateSiteDialog({
         if (!eventLine || !dataLine) continue;
         try {
           const data = JSON.parse(dataLine) as Record<string, unknown>;
-          if (eventLine === "fetching") {
-            addLog(`Fetching ${data.url as string}…`);
+          if (eventLine === "scrape_cached") {
+            setImportPhase("scraping");
+            const pages = data.pages as number;
+            try {
+              const host = new URL(data.url as string).hostname;
+              setImportPhaseLabel(`Using cached crawl — ${host}`);
+            } catch {
+              setImportPhaseLabel(`Using cached crawl (${pages} pages)`);
+            }
+          } else if (eventLine === "fetching") {
+            setImportPhase("scraping");
+            try { setImportPhaseLabel(`Scanning ${new URL(data.url as string).hostname}…`); } catch { setImportPhaseLabel("Scanning…"); }
           } else if (eventLine === "discovered") {
             const urls = data.urls as string[];
-            addLog(`Found ${urls.length} page${urls.length !== 1 ? "s" : ""}: ${urls.map(u => new URL(u).pathname).join(", ")}`);
+            setImportPhaseLabel(`Found ${urls.length} page${urls.length !== 1 ? "s" : ""} to scan`);
           } else if (eventLine === "page_done") {
-            addLog(`✓ ${data.title as string} — ${data.sections as number} section${(data.sections as number) !== 1 ? "s" : ""}`);
-          } else if (eventLine === "page_failed") {
-            addLog(`✗ Could not fetch ${data.url as string}`);
+            setImportPhaseLabel(`Scanned: ${data.title as string}`);
           } else if (eventLine === "brand_start") {
-            setAiStatus("Extracting brand colors and logo…");
+            setImportPhase("brand");
+            setImportPhaseLabel("Extracting brand colors and logo…");
           } else if (eventLine === "brand_done") {
-            setAiStatus(null);
-            const primary = data.primary as string | null;
-            const logo = data.logo as boolean;
             const font = data.heading_font as string | null;
-            const parts = [];
-            if (primary) parts.push(`brand color ${primary}`);
-            if (font) parts.push(`${font} font`);
+            const logo = data.logo as boolean;
+            const parts: string[] = [];
+            if (data.primary) parts.push(`${data.primary as string}`);
+            if (font) parts.push(font);
             if (logo) parts.push("logo");
-            addLog(`✓ Brand kit — ${parts.length ? parts.join(", ") : "defaults applied"}`);
+            setImportPhaseLabel(`Brand kit${parts.length ? ` — ${parts.join(", ")}` : ""}`);
           } else if (eventLine === "images_start") {
-            setAiStatus("Downloading site images…");
+            setImportPhaseLabel("Downloading images…");
           } else if (eventLine === "images_done") {
-            setAiStatus(null);
-            const count = data.count as number;
-            addLog(`✓ Images — ${count} downloaded`);
+            setImportPhaseLabel(`${data.count as number} images downloaded`);
           } else if (eventLine === "ai_start") {
-            const pages = data.pages as number;
-            addLog(`─── Building ${pages} page${pages !== 1 ? "s" : ""} with AI ───`);
+            setImportPhase("building");
+            setImportPhaseLabel(null);
+            // Pre-populate page list — server sends total count, page slugs/labels arrive via ai_page_start
+            const total = data.pages as number;
+            setImportPages(Array.from({ length: total }, (_, i) => ({ slug: `page-${i}`, label: `Page ${i + 1}`, status: "pending" })));
           } else if (eventLine === "ai_page_start") {
-            const pageLabel = data.label as string;
-            const substeps = ["mapping sections", "writing copy", "choosing layouts", "assigning images", "finalizing"];
+            const slug = data.slug as string;
+            const label = data.label as string;
+            const index = data.index as number;
+            const total = data.total as number;
+            // Update the placeholder at this index with real label, mark active
+            setImportPages(prev => prev.map((p, i) =>
+              i === index ? { ...p, slug, label, status: "active", substep: "Mapping sections" } : p
+            ));
+            setImportPhaseLabel(`Page ${index + 1} of ${total}`);
+            // Advance substep label — clamp at last item, never loop
+            const substeps = ["Mapping sections", "Writing copy", "Choosing layouts", "Assigning images", "Finalizing"];
             let substepIdx = 0;
             if (pageSubstepRef.current) clearInterval(pageSubstepRef.current);
-            setAiStatus(`Creating ${pageLabel}… ${substeps[0]}`);
             pageSubstepRef.current = setInterval(() => {
-              substepIdx = (substepIdx + 1) % substeps.length;
-              setAiStatus(`Creating ${pageLabel}… ${substeps[substepIdx]}`);
-            }, 4000);
+              substepIdx = Math.min(substepIdx + 1, substeps.length - 1);
+              setImportPages(prev => prev.map((p, i) =>
+                i === index ? { ...p, substep: substeps[substepIdx] } : p
+              ));
+              if (substepIdx === substeps.length - 1 && pageSubstepRef.current) {
+                clearInterval(pageSubstepRef.current);
+                pageSubstepRef.current = null;
+              }
+            }, 5000);
           } else if (eventLine === "ai_page_done") {
             if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
-            const pageLabel = data.label as string;
             const pageSlug = data.slug as string;
+            const pageLabel = data.label as string;
+            const blocks = data.blocks as number;
             const costEventId = (data.costEventId as string | null) ?? null;
-            addLog(`✓ ${pageLabel} — ${data.blocks as number} block${(data.blocks as number) !== 1 ? "s" : ""}`);
-            setAiStatus(null);
+            setImportPages(prev => prev.map(p =>
+              p.slug === pageSlug ? { ...p, label: pageLabel, status: "done", blocks, substep: undefined } : p
+            ));
             setPageRatings(prev => [...prev, { slug: pageSlug, label: pageLabel, costEventId, rating: null }]);
           } else if (eventLine === "complete") {
             if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
-            setAiStatus(null);
             finalSite = data.site as Site;
             finalSummary = data.summary as ImportSummary;
             setPendingSiteId((data.site as Site).id);
           } else if (eventLine === "error") {
             if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
-            setAiStatus(null);
             setImportError(data.message as string);
             setIsImporting(false);
             return null;
@@ -362,7 +380,7 @@ function CreateSiteDialog({
         const generated = await generateSite(site.id, { prompt: genPrompt, theme_preset: theme });
         return { site: generated, summary: null, created: site };
       }
-      const name = selectedPlace?.name ?? importUrlManual;
+      const name = selectedPlace!.name;
       const site = await createSite({ name });
       const result = await runImport(site.id);
       return { site: result?.site ?? site, summary: result?.summary ?? null, created: site };
@@ -393,7 +411,7 @@ function CreateSiteDialog({
   const isPending = createMutation.isPending || isImporting;
   const canSubmit = mode === "generate"
     ? genName.trim().length > 0 && genPrompt.trim().length > 0
-    : importUrl.trim().length > 0;
+    : !!selectedPlace && !!(selectedPlace.website || importUrlManual.trim());
   const isScanning = isPending && mode === "import";
 
   return (
@@ -407,12 +425,12 @@ function CreateSiteDialog({
           {/* ── GMB search (import mode, no selection yet) ── */}
           {mode === "import" && !selectedPlace && !loadingPlace && !isScanning && !importSummary && (
             <div className="tw-space-y-2">
-              <Label htmlFor="gmb-search">Enter your website URL</Label>
+              <Label htmlFor="gmb-search">Search for your business on Google</Label>
               <div className="tw-relative">
                 <Search className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground tw-pointer-events-none" />
                 <Input
                   id="gmb-search"
-                  placeholder="https://ironpeakcrossfit.com"
+                  placeholder="Iron Peak CrossFit Denver"
                   value={gmbQuery}
                   onChange={(e) => { setGmbQuery(e.target.value); setGmbResults([]); }}
                   style={{ paddingLeft: "2.25rem" }}
@@ -450,7 +468,7 @@ function CreateSiteDialog({
                 onClick={handleSelectGenerate}
                 className="tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-underline tw-underline-offset-2"
               >
-                I don't have a website yet
+                I don't have a Google Business profile yet
               </button>
             </div>
           )}
@@ -569,32 +587,51 @@ function CreateSiteDialog({
             </div>
           )}
 
-          {/* ── Scanning progress ── */}
-          {isScanning && importLog.length === 0 && (
-            <div className="tw-flex tw-items-center tw-gap-2 tw-rounded-lg tw-bg-muted tw-p-3">
-              <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
-              <p className="tw-text-sm tw-text-muted-foreground">Starting scan…</p>
-            </div>
-          )}
-          {importLog.length > 0 && (
-            <div className="tw-rounded-lg tw-bg-muted tw-p-3 tw-space-y-1 tw-max-h-44 tw-overflow-y-auto">
-              {importLog.map((line, i) => (
-                <p key={i} className={`tw-text-xs tw-font-mono tw-leading-relaxed ${line.startsWith("───") ? "tw-text-muted-foreground" : "tw-text-foreground"}`}>
-                  {line}
+          {/* ── Import progress ── */}
+          {isScanning && (
+            <div className="tw-rounded-lg tw-border tw-border-border tw-overflow-hidden">
+              {/* Phase header */}
+              <div className="tw-flex tw-items-center tw-gap-2.5 tw-px-3 tw-py-2.5 tw-bg-muted tw-border-b tw-border-border">
+                <Loader2 className="tw-h-3.5 tw-w-3.5 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
+                <p className="tw-text-xs tw-font-medium tw-text-foreground">
+                  {importPhase === "scraping" && "Scanning website"}
+                  {importPhase === "brand" && "Extracting brand"}
+                  {importPhase === "building" && `Building pages${importPhaseLabel ? ` — ${importPhaseLabel}` : ""}`}
+                  {!importPhase && "Starting…"}
                 </p>
-              ))}
-              {aiStatus && (
-                <div className="tw-flex tw-items-center tw-gap-1.5 tw-pt-0.5">
-                  <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
-                  <p className="tw-text-xs tw-font-mono tw-text-muted-foreground">{aiStatus}</p>
+                {importPhaseLabel && importPhase !== "building" && (
+                  <p className="tw-text-xs tw-text-muted-foreground tw-truncate">{importPhaseLabel}</p>
+                )}
+              </div>
+              {/* Page list — only shown during building phase */}
+              {importPhase === "building" && importPages.length > 0 && (
+                <div className="tw-divide-y tw-divide-border tw-max-h-52 tw-overflow-y-auto">
+                  {importPages.map((page) => (
+                    <div key={page.slug} className="tw-flex tw-items-center tw-gap-2.5 tw-px-3 tw-py-2">
+                      {page.status === "done" && (
+                        <CheckCircle2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-success" />
+                      )}
+                      {page.status === "active" && (
+                        <Loader2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-animate-spin tw-text-primary" />
+                      )}
+                      {page.status === "pending" && (
+                        <div className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-rounded-full tw-border tw-border-border" />
+                      )}
+                      <div className="tw-min-w-0">
+                        <p className={`tw-text-xs tw-font-medium tw-truncate ${page.status === "pending" ? "tw-text-muted-foreground" : "tw-text-foreground"}`}>
+                          {page.label}
+                        </p>
+                        {page.status === "active" && page.substep && (
+                          <p className="tw-text-xs tw-text-muted-foreground">{page.substep}</p>
+                        )}
+                        {page.status === "done" && page.blocks != null && (
+                          <p className="tw-text-xs tw-text-muted-foreground">{page.blocks} block{page.blocks !== 1 ? "s" : ""}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              {isScanning && !aiStatus && (
-                <div className="tw-flex tw-items-center tw-gap-1.5 tw-pt-0.5">
-                  <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0 tw-text-muted-foreground" />
-                </div>
-              )}
-              <div ref={logEndRef} />
             </div>
           )}
 

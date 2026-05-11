@@ -9,6 +9,7 @@ export interface Database {
   cost_events: CostEventsTable;
   site_quality_signals: SiteQualitySignalsTable;
   block_instructions: BlockInstructionsTable;
+  crawl_cache: CrawlCacheTable;
 }
 
 export interface UsersTable {
@@ -159,3 +160,12 @@ export interface BlockInstructionsTable {
 
 export type BlockInstruction = Selectable<BlockInstructionsTable>;
 export type NewBlockInstruction = Insertable<BlockInstructionsTable>;
+
+export interface CrawlCacheTable {
+  id: Generated<string>;
+  url_hash: string;
+  url: string;
+  data: unknown;
+  created_at: Generated<Date>;
+  expires_at: Date;
+}

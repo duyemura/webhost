@@ -171,12 +171,13 @@ export function extractBrandSignals(homeHtml: string, baseUrl: string, siteName:
 
   // Extract font-family values from :root and body CSS rules
   const cssFontFamilies: string[] = [];
-  const fontFamilyRe = /font-family\s*:\s*['"]?([A-Za-z0-9 ]+)['"]?/gi;
   $("style").each((_, el) => {
     const css = $(el).text();
     // Only look in :root and body rules to avoid noise from component fonts
     const rootBodyBlocks = css.match(/(?::root|body)\s*\{[^}]+\}/g) ?? [];
     for (const block of rootBodyBlocks) {
+      // New regex per block — /g flag regex retains lastIndex across exec() calls
+      const fontFamilyRe = /font-family\s*:\s*['"]?([A-Za-z0-9 ]+)['"]?/gi;
       let m: RegExpExecArray | null;
       while ((m = fontFamilyRe.exec(block)) !== null) {
         const name = m[1]!.trim();

@@ -146,7 +146,7 @@ async function extractCssImages(html: string, baseUrl: string): Promise<string[]
     }
   }));
 
-  return found.slice(0, 10);
+  return found.slice(0, 20);
 }
 
 function extractSections(html: string, baseUrl?: string): ScrapedSection[] {
@@ -313,7 +313,7 @@ export async function scrapeWebsite(
   const navLinks = extractNavLinks(homeHtml, baseUrl);
   const toVisit = navLinks
     .filter(l => l !== baseUrl.href && l !== baseUrl.href + "/")
-    .slice(0, 10);
+    .slice(0, 20);
 
   if (toVisit.length > 0) {
     onEvent({ type: "discovered", urls: toVisit });

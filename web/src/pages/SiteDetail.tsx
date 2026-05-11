@@ -745,6 +745,7 @@ function PageAccordionItem({
   onSiteUpdated,
   onRebuildStart,
   onRebuildEnd,
+  onBusyChange,
 }: {
   siteId: string;
   page: { slug: string; title: string; nav_label?: string; sections: Record<string, unknown>[] };
@@ -753,6 +754,7 @@ function PageAccordionItem({
   onSiteUpdated: (site: Site) => void;
   onRebuildStart: (slug: string) => void;
   onRebuildEnd: (slug: string, error: string | null) => void;
+  onBusyChange: (busy: boolean) => void;
 }): React.ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -771,6 +773,7 @@ function PageAccordionItem({
 
   async function handleRebuild() {
     setIsRebuilding(true);
+    onBusyChange(true);
     onRebuildStart(page.slug);
     try {
       const updated = await rebuildPage(siteId, page.slug);
@@ -780,6 +783,7 @@ function PageAccordionItem({
       onRebuildEnd(page.slug, (err as Error).message);
     } finally {
       setIsRebuilding(false);
+      onBusyChange(false);
     }
   }
 
@@ -789,6 +793,7 @@ function PageAccordionItem({
     setMessages(prev => [...prev, { role: "user", content: trimmed }]);
     setInstruction("");
     setIsChatPending(true);
+    onBusyChange(true);
     setChatError(null);
     try {
       const updated = await aiEditPage(siteId, page.slug, trimmed);
@@ -800,6 +805,7 @@ function PageAccordionItem({
       setMessages(prev => [...prev, { role: "assistant", content: `Error: ${msg}` }]);
     } finally {
       setIsChatPending(false);
+      onBusyChange(false);
     }
   }
 
@@ -929,8 +935,8 @@ function AiGenerateSection({
   siteId, hasSpec, spec, themePreset, generationPrompt, canRebuildPages,
   genPrompt, setGenPrompt, genTheme, setGenTheme,
   genRegenOpen, setGenRegenOpen,
-  isPending, error, onGenerate, onSiteUpdated,
-}: AiGenerateSectionProps & { onSiteUpdated: (site: Site) => void }) {
+  isPending, error, onGenerate, onSiteUpdated, onPreviewBusy,
+}: AiGenerateSectionProps & { onSiteUpdated: (site: Site) => void; onPreviewBusy: (busy: boolean) => void }) {
   const specData = spec as { version: number; pages: { slug: string; title: string; nav_label?: string; sections: Record<string, unknown>[] }[] } | null;
   const [rebuildError, setRebuildError] = useState<string | null>(null);
   const [busySlug, setBusySlug] = useState<string | null>(null);
@@ -992,6 +998,7 @@ function AiGenerateSection({
             onSiteUpdated={onSiteUpdated}
             onRebuildStart={slug => { setBusySlug(slug); setRebuildError(null); }}
             onRebuildEnd={(_, err) => { setBusySlug(null); setRebuildError(err); }}
+            onBusyChange={onPreviewBusy}
           />
         ))}
       </div>
@@ -1563,6 +1570,7 @@ export function SiteDetail() {
   const [genPrompt, setGenPrompt] = useState("");
   const [genTheme, setGenTheme] = useState<ThemePreset>("bold");
   const [genRegenOpen, setGenRegenOpen] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [livePreview, setLivePreview] = useState<{ spec: SiteSpec; theme: Theme; page: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -1782,6 +1790,7 @@ export function SiteDetail() {
                   queryClient.setQueryData(["sites", id], { ...updated, cname_target: site?.cname_target });
                   refreshPreview();
                 }}
+                onPreviewBusy={setPreviewBusy}
               />
             </TabsContent>
 
@@ -1913,7 +1922,7 @@ export function SiteDetail() {
             />
           </div>
         ) : isPublished ? (
-          <div className="tw-flex-1 tw-flex tw-overflow-hidden tw-border tw-border-border tw-rounded-b-lg tw-bg-background">
+          <div className="tw-flex-1 tw-flex tw-overflow-hidden tw-border tw-border-border tw-rounded-b-lg tw-bg-background tw-relative">
             {previewViewport === "desktop" ? (
               <iframe
                 key={`${previewKey}-desktop`}
@@ -1932,6 +1941,13 @@ export function SiteDetail() {
                     title="Site preview — mobile"
                   />
                 </div>
+              </div>
+            )}
+            {previewBusy && (
+              <div className="tw-absolute tw-inset-0 tw-bg-background/75 tw-backdrop-blur-sm tw-flex tw-flex-col tw-items-center tw-justify-center tw-z-10 tw-rounded-b-lg">
+                <Loader2 className="tw-h-8 tw-w-8 tw-animate-spin tw-text-muted-foreground tw-mb-3" />
+                <p className="tw-text-sm tw-font-medium tw-text-foreground">Updating page…</p>
+                <p className="tw-text-xs tw-text-muted-foreground tw-mt-1">Preview will refresh when done</p>
               </div>
             )}
           </div>

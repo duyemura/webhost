@@ -207,6 +207,9 @@ export const THEME_PRESET_DESCRIPTIONS: Record<ThemePreset, string> = {
 export const generateSite = (siteId: string, body: { prompt: string; theme_preset?: string }) =>
   apiFetch<Site>(`/sites/${siteId}/generate`, { method: "POST", body: JSON.stringify(body) });
 
+export const rebuildPage = (siteId: string, slug: string) =>
+  apiFetch<Site>(`/sites/${siteId}/pages/${slug}/rebuild`, { method: "POST" });
+
 export interface ImportSummary {
   source_url: string;
   pages_scraped: number;

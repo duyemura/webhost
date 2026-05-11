@@ -18,6 +18,7 @@ import {
   Loader2,
   CheckCircle2,
   Wand2,
+  RefreshCw,
 } from "lucide-react";
 import {
   Button,
@@ -75,6 +76,7 @@ import {
   DEFAULT_THEME,
   updateSpec,
   updateTheme,
+  rebuildPage,
 } from "../api";
 import { BlockEditor } from "../components/editor/BlockEditor";
 import { LivePreview } from "../components/editor/LivePreview";
@@ -645,6 +647,7 @@ interface AiGenerateSectionProps {
   theme: unknown;
   themePreset: string | null;
   generationPrompt: string;
+  canRebuildPages: boolean;
   genPrompt: string;
   setGenPrompt: (v: string) => void;
   genTheme: ThemePreset;
@@ -729,13 +732,29 @@ function blockSummary(section: Record<string, unknown>): string {
 }
 
 function AiGenerateSection({
-  hasSpec, spec, themePreset, generationPrompt,
+  siteId, hasSpec, spec, themePreset, generationPrompt, canRebuildPages,
   genPrompt, setGenPrompt, genTheme, setGenTheme,
   genRegenOpen, setGenRegenOpen,
   isPending, error, onGenerate,
 }: AiGenerateSectionProps) {
+  const queryClient = useQueryClient();
   const specData = spec as { version: number; pages: { slug: string; title: string; sections: Record<string, unknown>[] }[] } | null;
   const totalBlocks = specData?.pages.reduce((n, p) => n + p.sections.length, 0) ?? 0;
+  const [rebuildingSlug, setRebuildingSlug] = useState<string | null>(null);
+  const [pageRebuildError, setPageRebuildError] = useState<string | null>(null);
+
+  async function handleRebuildPage(slug: string) {
+    setRebuildingSlug(slug);
+    setPageRebuildError(null);
+    try {
+      await rebuildPage(siteId, slug);
+      await queryClient.invalidateQueries({ queryKey: ["sites", siteId] });
+    } catch (err) {
+      setPageRebuildError((err as Error).message);
+    } finally {
+      setRebuildingSlug(null);
+    }
+  }
 
   // Prefill prompt from generation_prompt on mount
   const didPrefill = useRef(false);
@@ -785,9 +804,26 @@ function AiGenerateSection({
       <div className="tw-space-y-3">
         {specData?.pages.map(page => (
           <div key={page.slug} className="tw-space-y-1">
-            <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-muted-foreground">
-              {page.title}
-            </p>
+            <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
+              <p className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-muted-foreground">
+                {page.title}
+              </p>
+              {canRebuildPages && (
+                <button
+                  type="button"
+                  title="Rebuild this page"
+                  disabled={rebuildingSlug !== null}
+                  onClick={() => handleRebuildPage(page.slug)}
+                  className="tw-flex tw-items-center tw-gap-1 tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-transition-colors disabled:tw-opacity-40 disabled:tw-cursor-not-allowed"
+                >
+                  {rebuildingSlug === page.slug
+                    ? <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin" />
+                    : <RefreshCw className="tw-h-3 tw-w-3" />
+                  }
+                  <span>{rebuildingSlug === page.slug ? "Rebuilding…" : "Rebuild"}</span>
+                </button>
+              )}
+            </div>
             <div className="tw-space-y-0.5">
               {page.sections.map(s => (
                 <p key={String(s.id)} className="tw-text-sm tw-text-foreground tw-flex tw-items-center tw-gap-1.5">
@@ -799,6 +835,9 @@ function AiGenerateSection({
           </div>
         ))}
       </div>
+      {pageRebuildError && (
+        <p className="tw-text-xs tw-text-error">{pageRebuildError}</p>
+      )}
 
       {/* Theme chip */}
       {presetName && (
@@ -1576,6 +1615,7 @@ export function SiteDetail() {
                 theme={site.theme}
                 themePreset={site.theme_preset ?? null}
                 generationPrompt={site.generation_prompt ?? ""}
+                canRebuildPages={!!extractImportUrl(site.generation_prompt)}
                 genPrompt={genPrompt}
                 setGenPrompt={setGenPrompt}
                 genTheme={genTheme}

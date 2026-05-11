@@ -270,7 +270,7 @@ interface PageResult {
   costEventId: string | null;
 }
 
-async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, brand?: BrandContext, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
+export async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, brand?: BrandContext, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
   const toolSchema = buildPageToolSchema(instructions);
   const userMessage = buildPageUserMessage(page, siteName, images, gmb, brand);
   const model = "claude-sonnet-4-6";

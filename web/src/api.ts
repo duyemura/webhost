@@ -210,6 +210,12 @@ export const generateSite = (siteId: string, body: { prompt: string; theme_prese
 export const rebuildPage = (siteId: string, slug: string) =>
   apiFetch<Site>(`/sites/${siteId}/pages/${slug}/rebuild`, { method: "POST" });
 
+export const aiEditPage = (siteId: string, slug: string, instruction: string) =>
+  apiFetch<Site>(`/sites/${siteId}/pages/${slug}/ai-edit`, {
+    method: "POST",
+    body: JSON.stringify({ instruction }),
+  });
+
 export interface ImportSummary {
   source_url: string;
   pages_scraped: number;

@@ -77,6 +77,7 @@ import {
   updateSpec,
   updateTheme,
   rebuildPage,
+  aiEditPage,
 } from "../api";
 import { BlockEditor } from "../components/editor/BlockEditor";
 import { LivePreview } from "../components/editor/LivePreview";
@@ -871,6 +872,146 @@ function AiGenerateSection({
   );
 }
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  slug?: string;
+}
+
+function PageAiChatSection({
+  siteId,
+  spec,
+  onSiteUpdated,
+}: {
+  siteId: string;
+  spec: { pages: { slug: string; title: string }[] };
+  onSiteUpdated: (site: Site) => void;
+}): React.ReactElement {
+  const [selectedSlug, setSelectedSlug] = useState(spec.pages[0]?.slug ?? "index");
+  const [instruction, setInstruction] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function handleSend() {
+    const trimmed = instruction.trim();
+    if (!trimmed || isPending) return;
+    const page = spec.pages.find(p => p.slug === selectedSlug);
+    const pageLabel = page?.title ?? selectedSlug;
+    setMessages(prev => [...prev, { role: "user", content: trimmed, slug: selectedSlug }]);
+    setInstruction("");
+    setIsPending(true);
+    setError(null);
+    try {
+      const updated = await aiEditPage(siteId, selectedSlug, trimmed);
+      onSiteUpdated(updated);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Done — "${pageLabel}" updated. Check the preview to see your changes.`,
+        slug: selectedSlug,
+      }]);
+    } catch (err) {
+      const msg = (err as Error).message;
+      setError(msg);
+      setMessages(prev => [...prev, { role: "assistant", content: `Error: ${msg}`, slug: selectedSlug }]);
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void handleSend();
+    }
+  }
+
+  const pageLabel = spec.pages.find(p => p.slug === selectedSlug)?.title ?? selectedSlug;
+
+  return (
+    <div className="tw-space-y-3">
+      <div>
+        <h3 className="tw-text-sm tw-font-semibold">AI page editor</h3>
+        <p className="tw-text-xs tw-text-muted-foreground tw-mt-0.5">
+          Edit any page with natural language. Pinpoint ("change the hero headline to…") or broad ("rewrite to speak to beginners").
+        </p>
+      </div>
+
+      {/* Page selector */}
+      <div>
+        <label className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-block tw-mb-1">Page</label>
+        <select
+          value={selectedSlug}
+          onChange={e => setSelectedSlug(e.target.value)}
+          className="tw-w-full tw-rounded-md tw-border tw-border-border tw-bg-background tw-px-3 tw-py-1.5 tw-text-sm tw-text-foreground focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-primary/30"
+        >
+          {spec.pages.map(p => (
+            <option key={p.slug} value={p.slug}>{p.title}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Chat history */}
+      {messages.length > 0 && (
+        <div className="tw-rounded-lg tw-border tw-border-border tw-bg-muted/30 tw-p-3 tw-space-y-3 tw-max-h-64 tw-overflow-y-auto">
+          {messages.map((msg, i) => (
+            <div key={i} className={`tw-flex tw-gap-2 ${msg.role === "user" ? "tw-justify-end" : "tw-justify-start"}`}>
+              <div className={`tw-max-w-[85%] tw-rounded-lg tw-px-3 tw-py-2 tw-text-sm ${
+                msg.role === "user"
+                  ? "tw-bg-primary tw-text-primary-foreground"
+                  : "tw-bg-background tw-border tw-border-border tw-text-foreground"
+              }`}>
+                {msg.role === "user" && msg.slug && (
+                  <span className="tw-block tw-text-xs tw-opacity-70 tw-mb-0.5">{spec.pages.find(p => p.slug === msg.slug)?.title ?? msg.slug}</span>
+                )}
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          {isPending && (
+            <div className="tw-flex tw-gap-2 tw-justify-start">
+              <div className="tw-bg-background tw-border tw-border-border tw-rounded-lg tw-px-3 tw-py-2">
+                <Loader2 className="tw-h-4 tw-w-4 tw-animate-spin tw-text-muted-foreground" />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="tw-space-y-2">
+        <Textarea
+          placeholder={`Edit "${pageLabel}" — e.g. "Change the hero headline to focus on beginners" or "Rewrite the pricing section to emphasize value"`}
+          value={instruction}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInstruction(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={3}
+          disabled={isPending}
+          className="tw-resize-none"
+        />
+        {error && <p className="tw-text-xs tw-text-error">{error}</p>}
+        <Button
+          onClick={() => void handleSend()}
+          disabled={!instruction.trim()}
+          isSubmitting={isPending}
+          className="tw-w-full"
+          size="sm"
+        >
+          <Wand2 className="tw-h-3.5 tw-w-3.5 tw-mr-1.5" />
+          {isPending ? "Editing…" : "Edit with AI"}
+        </Button>
+        <p className="tw-text-xs tw-text-muted-foreground tw-text-center">⌘↵ to send</p>
+      </div>
+    </div>
+  );
+}
+
 function TemplatePickerEmptyState({
   siteId,
   onApplied,
@@ -1550,7 +1691,7 @@ export function SiteDetail() {
             <div className="tw-flex tw-items-center tw-justify-between tw-mb-6">
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="ai">AI</TabsTrigger>
+                <TabsTrigger value="ai">Pages</TabsTrigger>
                 <TabsTrigger value="editor">Editor</TabsTrigger>
                 <TabsTrigger value="files">Website</TabsTrigger>
               </TabsList>
@@ -1606,7 +1747,7 @@ export function SiteDetail() {
               </div>
             </TabsContent>
 
-            {/* AI generation */}
+            {/* Pages tab */}
             <TabsContent value="ai" className="tw-space-y-6">
               <AiGenerateSection
                 siteId={id!}
@@ -1626,6 +1767,19 @@ export function SiteDetail() {
                 error={generateMutation.error?.message ?? null}
                 onGenerate={() => generateMutation.mutate()}
               />
+              {!!site.spec && (
+                <>
+                  <hr className="tw-border-border" />
+                  <PageAiChatSection
+                    siteId={id!}
+                    spec={site.spec as { pages: { slug: string; title: string }[] }}
+                    onSiteUpdated={(updated) => {
+                      queryClient.setQueryData(["sites", id], { ...updated, cname_target: site?.cname_target });
+                      refreshPreview();
+                    }}
+                  />
+                </>
+              )}
             </TabsContent>
 
             {/* Block editor */}

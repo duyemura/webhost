@@ -84,6 +84,8 @@ interface BrandSignals {
   favicon_url: string | null;
   og_image: string | null;
   hero_style_colors: string[];
+  google_fonts: string[];       // font family names found in Google Fonts <link> tags
+  css_font_families: string[];  // font-family values found in :root / body CSS rules
   site_name: string;
   base_url: string;
 }
@@ -155,6 +157,37 @@ export function extractBrandSignals(homeHtml: string, baseUrl: string, siteName:
     }
   });
 
+  // Extract font family names from Google Fonts <link> tags
+  const googleFonts: string[] = [];
+  $("link[href*='fonts.googleapis.com'], link[href*='fonts.gstatic.com']").each((_, el) => {
+    const href = $(el).attr("href") ?? "";
+    // family=Font+Name:wght@... or family=Font+Name&...
+    const matches = [...href.matchAll(/family=([A-Za-z0-9+]+)/g)];
+    for (const m of matches) {
+      const name = m[1]!.replace(/\+/g, " ");
+      if (name && !googleFonts.includes(name)) googleFonts.push(name);
+    }
+  });
+
+  // Extract font-family values from :root and body CSS rules
+  const cssFontFamilies: string[] = [];
+  const fontFamilyRe = /font-family\s*:\s*['"]?([A-Za-z0-9 ]+)['"]?/gi;
+  $("style").each((_, el) => {
+    const css = $(el).text();
+    // Only look in :root and body rules to avoid noise from component fonts
+    const rootBodyBlocks = css.match(/(?::root|body)\s*\{[^}]+\}/g) ?? [];
+    for (const block of rootBodyBlocks) {
+      let m: RegExpExecArray | null;
+      while ((m = fontFamilyRe.exec(block)) !== null) {
+        const name = m[1]!.trim();
+        if (name && name.toLowerCase() !== "sans-serif" && name.toLowerCase() !== "serif"
+          && name.toLowerCase() !== "monospace" && !cssFontFamilies.includes(name)) {
+          cssFontFamilies.push(name);
+        }
+      }
+    }
+  });
+
   return {
     theme_color,
     ms_tile_color,
@@ -162,6 +195,8 @@ export function extractBrandSignals(homeHtml: string, baseUrl: string, siteName:
     favicon_url,
     og_image,
     hero_style_colors: [...new Set(heroStyleColors)].slice(0, 12),
+    google_fonts: googleFonts.slice(0, 5),
+    css_font_families: cssFontFamilies.slice(0, 5),
     site_name: siteName,
     base_url: baseUrl,
   };
@@ -231,15 +266,17 @@ Return a JSON object with exactly these fields:
   "background": "#hex",           // page background (usually white or near-white, or dark for dark sites)
   "foreground": "#hex",           // main body text color
   "accent": "#hex",               // highlight/accent color (can equal primary)
-  "heading_font": "Font Name",    // Google Fonts name for headings (e.g. "Montserrat", "Playfair Display", "Inter")
-  "body_font": "Font Name",       // Google Fonts name for body text (e.g. "Inter", "Open Sans", "Lato")
+  "heading_font": "Font Name or null",  // Google Fonts name ONLY if found in the font signals — otherwise null
+  "body_font": "Font Name or null",     // Google Fonts name ONLY if found in the font signals — otherwise null
   "logo_url": "url or null"       // pick the best logo URL from candidates, or null
 }
 
 Rules:
 - Prioritize the theme-color and inline colors found — they represent the real brand palette
 - If no colors found, use neutral professional defaults (#111827 primary, white background)
-- heading_font and body_font must be real Google Fonts names
+- heading_font / body_font: ONLY return a font name when it appears in the Google Fonts links or CSS
+  font-family signals. If no fonts were found, return null — do NOT guess or invent a font name.
+- When fonts are found, the value must be an exact Google Fonts family name (e.g. "Montserrat")
 - primary_foreground must be readable on the primary background (#fff or #000 or near)
 - Return ONLY valid JSON, no markdown, no explanation`;
 
@@ -273,7 +310,9 @@ Brand signals found:
 - OG image: ${signals.og_image ?? "none"}
 - Inline/CSS hex colors on header/hero: ${signals.hero_style_colors.length > 0 ? signals.hero_style_colors.join(", ") : "none"}
 - Logo image candidates (in order of likelihood): ${signals.logo_candidates.length > 0 ? signals.logo_candidates.join("\n  ") : "none"}
-- Favicon: ${signals.favicon_url ?? "none"}`;
+- Favicon: ${signals.favicon_url ?? "none"}
+- Google Fonts loaded: ${signals.google_fonts.length > 0 ? signals.google_fonts.join(", ") : "none"}
+- CSS font-family in :root/body: ${signals.css_font_families.length > 0 ? signals.css_font_families.join(", ") : "none"}`;
 
   let kit: BrandKit = { ...DEFAULT_BRAND_KIT };
 
@@ -300,7 +339,7 @@ Brand signals found:
     });
 
     const text = msg.content.find(c => c.type === "text")?.text ?? "";
-    const json = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as Partial<BrandKit & { logo_url: string }>;
+    const json = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as Partial<BrandKit & { logo_url: string } & { heading_font: string | null; body_font: string | null }>;
 
     kit = sanitizeBrandKit({
       logo_url: null,
@@ -311,6 +350,8 @@ Brand signals found:
       background: json.background ?? DEFAULT_BRAND_KIT.background,
       foreground: json.foreground ?? DEFAULT_BRAND_KIT.foreground,
       accent: json.accent ?? DEFAULT_BRAND_KIT.accent,
+      // null means "no font found" — fall back to the Inter default so
+      // applyBrandKitToTheme treats it as "no brand font, use theme font"
       heading_font: json.heading_font ?? DEFAULT_BRAND_KIT.heading_font,
       body_font: json.body_font ?? DEFAULT_BRAND_KIT.body_font,
     });

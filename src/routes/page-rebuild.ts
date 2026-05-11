@@ -88,8 +88,8 @@ export const pageRebuildRoutes: FastifyPluginAsync = async (app) => {
       city: profile.city ?? undefined,
       state: profile.state ?? undefined,
       hours: profile.hours ?? undefined,
-      gmb_rating: profile.gmb_rating ?? undefined,
-      gmb_review_count: profile.gmb_review_count ?? undefined,
+      gmb_rating: profile.gmb_rating != null ? Number(profile.gmb_rating) : undefined,
+      gmb_review_count: profile.gmb_review_count != null ? Number(profile.gmb_review_count) : undefined,
       gmb_reviews: profile.gmb_reviews as { author: string; rating: number; text: string }[] | undefined,
     } : undefined;
 

@@ -25,12 +25,16 @@ export function buildNav(
   siteName: string,
   requestPath: string,
   logoUrl: string | null = null,
+  siteCtaUrl: string | null = null,
+  siteCtaLabel: string | null = null,
 ): string {
-  // Determine CTA target first so we can exclude it from the nav links
-  const ctaPage = spec.pages.find(p => CTA_SLUG_RE.test(p.slug))
-    ?? spec.pages.find(p => /^contact/.test(p.slug))
-    ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p));
-  const ctaSlug = ctaPage?.slug ?? null;
+  // Determine CTA — site-level config wins, then auto-detect from pages
+  const ctaPage = !siteCtaUrl
+    ? (spec.pages.find(p => CTA_SLUG_RE.test(p.slug))
+      ?? spec.pages.find(p => /^contact/.test(p.slug))
+      ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p)))
+    : null;
+  const ctaSlug = siteCtaUrl ? null : (ctaPage?.slug ?? null);
 
   const pages = spec.pages.filter(p =>
     p.slug !== "index" &&
@@ -111,9 +115,9 @@ export function buildNav(
   // Cap to MAX_NAV_ITEMS so the CTA button is never pushed off-screen
   const visibleItems = rendered.slice(0, MAX_NAV_ITEMS);
 
-  // CTA: always present, always conversion-focused
-  const ctaHref = ctaPage ? `/${ctaPage.slug}` : "/contact";
-  const ctaLabel = ctaPage?.nav_label ?? "Get started";
+  // CTA: always present — site-level config wins over auto-detected page
+  const ctaHref = siteCtaUrl ?? (ctaPage ? `/${ctaPage.slug}` : "/contact");
+  const ctaLabel = siteCtaLabel ?? ctaPage?.nav_label ?? "Get started";
   const ctaHtml = `<li class="site-nav__cta"><a href="${esc(ctaHref)}" class="site-nav__cta-btn">${esc(ctaLabel)}</a></li>`;
 
   // Clean up site name: strip SEO tails like "- Gym in Denver"

@@ -204,6 +204,10 @@ const sql = `
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS build_status TEXT;
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS build_error  TEXT;
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS build_progress JSONB;
+
+  -- Phase 13: Site-level CTA configuration
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS cta_label TEXT;
+  ALTER TABLE sites ADD COLUMN IF NOT EXISTS cta_url   TEXT;
 `;
 
 const client = new pg.Client(config.db);

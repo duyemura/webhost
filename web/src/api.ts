@@ -67,6 +67,8 @@ export interface Site {
   build_status: string | null;
   build_error: string | null;
   build_progress: BuildProgress | null;
+  cta_label: string | null;
+  cta_url: string | null;
 }
 
 function getToken(): string | null {
@@ -119,7 +121,7 @@ export const getSites = () => apiFetch<Site[]>("/sites");
 export const getSite = (id: string) => apiFetch<Site>(`/sites/${id}`);
 export const createSite = (body: { name: string; slug?: string }) =>
   apiFetch<Site>("/sites", { method: "POST", body: JSON.stringify(body) });
-export const updateSite = (id: string, body: { name?: string; custom_domain?: string | null }) =>
+export const updateSite = (id: string, body: { name?: string; custom_domain?: string | null; cta_label?: string | null; cta_url?: string | null }) =>
   apiFetch<Site>(`/sites/${id}`, { method: "PATCH", body: JSON.stringify(body) });
 export const deleteSite = (id: string) =>
   apiFetch<void>(`/sites/${id}`, { method: "DELETE" });

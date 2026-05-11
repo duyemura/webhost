@@ -20,7 +20,7 @@ function getSiteSlug(host: string, baseDomain: string): string | null {
 }
 
 async function serveSite(
-  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme" | "brand_kit">,
+  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme" | "brand_kit" | "cta_url" | "cta_label">,
   requestUrl: string,
   reply: any,
 ): Promise<void> {
@@ -84,7 +84,7 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
     if (slug && !RESERVED_SLUGS.has(slug)) {
       const site = await db
         .selectFrom("sites")
-        .select(["id", "slug", "custom_domain", "published_at", "spec", "theme", "brand_kit"])
+        .select(["id", "slug", "custom_domain", "published_at", "spec", "theme", "brand_kit", "cta_url", "cta_label"])
         .where("slug", "=", slug)
         .executeTakeFirst();
 
@@ -101,7 +101,7 @@ const siteServerPlugin: FastifyPluginAsync = async (app) => {
     // Path 2: custom domain match — serves the live (published) slot
     const site = await db
       .selectFrom("sites")
-      .select(["id", "slug", "custom_domain", "published_at", "live_published_at", "spec", "theme", "brand_kit"])
+      .select(["id", "slug", "custom_domain", "published_at", "live_published_at", "spec", "theme", "brand_kit", "cta_url", "cta_label"])
       .where("custom_domain", "=", hostname)
       .executeTakeFirst();
 

@@ -246,6 +246,62 @@ function CustomDomainSection({
   );
 }
 
+function CtaSection({ siteId, ctaUrl, ctaLabel }: { siteId: string; ctaUrl: string | null; ctaLabel: string | null }) {
+  const queryClient = useQueryClient();
+  const [url, setUrl] = useState(ctaUrl ?? "");
+  const [label, setLabel] = useState(ctaLabel ?? "");
+  const dirty = url !== (ctaUrl ?? "") || label !== (ctaLabel ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () => updateSite(siteId, { cta_url: url.trim() || null, cta_label: label.trim() || null }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sites", siteId] }),
+  });
+
+  return (
+    <div className="tw-rounded-lg tw-border tw-border-border tw-p-4 tw-space-y-4">
+      <div>
+        <h2 className="tw-text-base tw-font-semibold">Nav CTA button</h2>
+        <p className="tw-text-sm tw-text-muted-foreground tw-mt-0.5">
+          The prominent button in the top-right of every page. Use an internal path like <code className="tw-text-xs tw-bg-muted tw-px-1 tw-py-0.5 tw-rounded">/drop-in</code> or an external URL like a booking link.
+        </p>
+      </div>
+      <div className="tw-grid tw-grid-cols-2 tw-gap-3">
+        <div>
+          <Label htmlFor="cta-label" className="tw-text-sm tw-font-medium tw-mb-1.5 tw-block">Button label</Label>
+          <Input
+            id="cta-label"
+            placeholder="Get started"
+            value={label}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLabel(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="cta-url" className="tw-text-sm tw-font-medium tw-mb-1.5 tw-block">Destination URL</Label>
+          <Input
+            id="cta-url"
+            placeholder="/drop-in or https://…"
+            value={url}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+          />
+        </div>
+      </div>
+      {mutation.isError && (
+        <p className="tw-text-sm tw-text-error">{mutation.error?.message}</p>
+      )}
+      <div className="tw-flex tw-justify-end">
+        <Button
+          size="sm"
+          disabled={!dirty}
+          isSubmitting={mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
+          Save CTA
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Registry of known script presets — must stay in sync with the backend registry
 const SCRIPT_PRESETS = [
   { type: "gtm", label: "Google Tag Manager", placeholder: "GTM-XXXXXX" },
@@ -1729,6 +1785,8 @@ export function SiteDetail() {
             {/* Overview */}
             <TabsContent value="overview" className="tw-space-y-6">
               <BusinessInfoSection siteId={id!} onSaved={refreshPreview} />
+
+              <CtaSection siteId={id!} ctaUrl={site.cta_url} ctaLabel={site.cta_label} />
 
               <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
                 <h2 className="tw-text-base tw-font-semibold tw-text-error tw-mb-1">

@@ -12,7 +12,7 @@ export const publishRoutes: FastifyPluginAsync = async (app) => {
 
     const site = await db
       .selectFrom("sites")
-      .select(["id", "published_at", "spec", "theme", "brand_kit", "slug", "custom_domain"])
+      .select(["id", "published_at", "spec", "theme", "brand_kit", "slug", "custom_domain", "cta_url", "cta_label"])
       .where("id", "=", id)
       .where("user_id", "=", req.user.sub)
       .executeTakeFirst();

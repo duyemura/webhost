@@ -42,6 +42,8 @@ export interface SitesTable {
   build_status: string | null;
   build_error: string | null;
   build_progress: unknown | null;
+  cta_label: string | null;
+  cta_url: string | null;
 }
 
 export type User = Selectable<UsersTable>;

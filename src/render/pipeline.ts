@@ -29,7 +29,7 @@ function applyBrandKit(theme: Theme, brandKit: BrandKit): Theme {
 }
 
 export async function renderSpecPage(
-  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme" | "brand_kit">,
+  site: Pick<Site, "id" | "slug" | "custom_domain" | "spec" | "theme" | "brand_kit" | "cta_url" | "cta_label">,
   profile: BusinessProfile | null,
   scripts: Script[],
   requestPath: string,
@@ -65,5 +65,5 @@ export async function renderSpecPage(
 
   const faviconUrl = brandKit?.favicon_url ?? null;
   const logoUrl = brandKit?.logo_url ?? null;
-  return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl, logoUrl });
+  return buildPage({ page, spec, theme, profile, sectionsHtml, scripts, site, requestPath, faviconUrl, logoUrl, ctaUrl: site.cta_url, ctaLabel: site.cta_label });
 }

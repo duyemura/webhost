@@ -548,9 +548,23 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     // original font. Colors come from the brand kit.
     const theme = brandKit ? applyBrandKitToTheme(baseTheme, brandKit) : baseTheme;
 
+    // Auto-detect CTA: prefer conversion pages (drop-in, intro, trial, join), then contact
+    const CTA_SLUG_RE = /drop.?in|no.?sweat|intro|free.?trial|get.?started|join|start/i;
+    const ctaPage = parsed.data.pages.find(p => CTA_SLUG_RE.test(p.slug))
+      ?? parsed.data.pages.find(p => /^contact/.test(p.slug));
+    const detectedCtaUrl = ctaPage ? `/${ctaPage.slug}` : null;
+    const detectedCtaLabel = ctaPage?.nav_label ?? null;
+
     let updated;
     try {
       const now = new Date();
+
+      // Only write detected CTA if site doesn't already have a custom one set
+      const existingSite = await db.selectFrom("sites").select(["cta_url", "cta_label"]).where("id", "=", id).executeTakeFirst();
+      const ctaWrite = existingSite?.cta_url
+        ? {} // owner has a custom CTA — don't overwrite
+        : { cta_url: detectedCtaUrl, cta_label: detectedCtaLabel };
+
       updated = await db
         .updateTable("sites")
         .set({
@@ -562,6 +576,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           updated_at: now,
           draft_updated_at: now,
           build_status: null,
+          ...ctaWrite,
           build_error: null,
           build_progress: null,
           ...(site.published_at ? {} : { published_at: now }),

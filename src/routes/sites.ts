@@ -21,6 +21,8 @@ const updateBody = z.object({
     .regex(DOMAIN_RE, "Enter a valid domain like www.mygym.com.")
     .nullable()
     .optional(),
+  cta_label: z.string().max(60).nullable().optional(),
+  cta_url: z.string().max(500).nullable().optional(),
 });
 
 export const sitesRoutes: FastifyPluginAsync = async (app) => {

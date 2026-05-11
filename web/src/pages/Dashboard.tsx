@@ -38,7 +38,7 @@ import {
 interface PageRatingItem {
   slug: string;
   label: string;
-  aiCallId: string | null;
+  costEventId: string | null;
   rating: number | null;
 }
 import { useAuth } from "../context/AuthContext";
@@ -116,7 +116,6 @@ function CreateSiteDialog({
   const [gmbSearching, setGmbSearching] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetail | null>(null);
   const [loadingPlace, setLoadingPlace] = useState(false);
-  const [manualUrl, setManualUrl] = useState(false);
   const [importUrlManual, setImportUrlManual] = useState("");
   const gmbDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const importAbortRef = useRef<AbortController | null>(null);
@@ -146,8 +145,7 @@ function CreateSiteDialog({
     setGmbSearching(false);
     setSelectedPlace(null);
     setLoadingPlace(false);
-    setManualUrl(false);
-    setImportUrlManual("");
+      setImportUrlManual("");
     setImportLog([]);
     setImportSummary(null);
     setImportError(null);
@@ -190,7 +188,7 @@ function CreateSiteDialog({
       const detail = await getPlaceDetail(result.id);
       setSelectedPlace(detail);
     } catch {
-      setSelectedPlace({ ...result, city: null, state: null, zip: null, country: null, hours: null });
+      setSelectedPlace({ ...result, city: null, state: null, zip: null, country: null, hours: null, reviews: [] });
     } finally {
       setLoadingPlace(false);
     }
@@ -249,6 +247,7 @@ function CreateSiteDialog({
             hours: selectedPlace.hours,
             gmb_rating: selectedPlace.rating,
             gmb_review_count: selectedPlace.reviewCount,
+            gmb_reviews: selectedPlace.reviews ?? [],
           },
         } : {}),
       }),
@@ -329,10 +328,10 @@ function CreateSiteDialog({
             if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
             const pageLabel = data.label as string;
             const pageSlug = data.slug as string;
-            const aiCallId = (data.aiCallId as string | null) ?? null;
+            const costEventId = (data.costEventId as string | null) ?? null;
             addLog(`✓ ${pageLabel} — ${data.blocks as number} block${(data.blocks as number) !== 1 ? "s" : ""}`);
             setAiStatus(null);
-            setPageRatings(prev => [...prev, { slug: pageSlug, label: pageLabel, aiCallId, rating: null }]);
+            setPageRatings(prev => [...prev, { slug: pageSlug, label: pageLabel, costEventId, rating: null }]);
           } else if (eventLine === "complete") {
             if (pageSubstepRef.current) { clearInterval(pageSubstepRef.current); pageSubstepRef.current = null; }
             setAiStatus(null);
@@ -408,15 +407,15 @@ function CreateSiteDialog({
           {/* ── GMB search (import mode, no selection yet) ── */}
           {mode === "import" && !selectedPlace && !loadingPlace && !isScanning && !importSummary && (
             <div className="tw-space-y-2">
-              <Label htmlFor="gmb-search">Find your business on Google</Label>
+              <Label htmlFor="gmb-search">Enter your website URL</Label>
               <div className="tw-relative">
                 <Search className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground tw-pointer-events-none" />
                 <Input
                   id="gmb-search"
-                  placeholder="Iron Peak CrossFit Denver"
+                  placeholder="https://ironpeakcrossfit.com"
                   value={gmbQuery}
                   onChange={(e) => { setGmbQuery(e.target.value); setGmbResults([]); }}
-                  className="tw-pl-9"
+                  style={{ paddingLeft: "2.25rem" }}
                   autoFocus
                   disabled={isPending}
                 />
@@ -444,37 +443,15 @@ function CreateSiteDialog({
                     )}
                   </button>
                 ))}
-                {/* Always last */}
-                <button
-                  type="button"
-                  onClick={handleSelectGenerate}
-                  className="tw-w-full tw-flex tw-items-center tw-gap-3 tw-px-3 tw-py-3 tw-text-left tw-bg-background hover:tw-bg-muted tw-transition-colors"
-                >
-                  <Wand2 className="tw-h-4 tw-w-4 tw-shrink-0 tw-text-muted-foreground" />
-                  <div>
-                    <p className="tw-text-sm tw-font-medium tw-text-foreground">Generate website using AI</p>
-                    <p className="tw-text-xs tw-text-muted-foreground">Describe your business and let AI build your site</p>
-                  </div>
-                </button>
               </div>
 
-              {/* Manual URL fallback */}
               <button
                 type="button"
-                onClick={() => setManualUrl(v => !v)}
+                onClick={handleSelectGenerate}
                 className="tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-underline tw-underline-offset-2"
               >
-                {manualUrl ? "Hide manual URL" : "Enter website URL manually instead"}
+                I don't have a website yet
               </button>
-              {manualUrl && (
-                <Input
-                  type="url"
-                  placeholder="https://yourgym.com"
-                  value={importUrlManual}
-                  onChange={(e) => { setImportUrlManual(e.target.value); setImportError(null); }}
-                  disabled={isPending}
-                />
-              )}
             </div>
           )}
 
@@ -683,7 +660,7 @@ function CreateSiteDialog({
                         if (!pendingSiteId) return;
                         await Promise.allSettled(
                           pageRatings.filter(p => p.rating !== null).map(p =>
-                            postQualitySignal(pendingSiteId, { ai_call_id: p.aiCallId, page_slug: p.slug, action: "rated", rating: p.rating! })
+                            postQualitySignal(pendingSiteId, { cost_event_id: p.costEventId, page_slug: p.slug, action: "rated", rating: p.rating! })
                           )
                         );
                         setRatingSubmitted(true);

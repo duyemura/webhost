@@ -7,12 +7,18 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   "claude-haiku-4-5-20251001":  { input: 0.80,   output: 4.00,   cache_read: 0.08,  cache_write: 1.00 },
 };
 
+// Google Places API (New) — cost is per-request based on highest-tier field requested
+export const GOOGLE_PLACES_COST = {
+  search: 0.04,  // Advanced tier (nationalPhoneNumber, rating, userRatingCount)
+  detail: 0.04,  // Advanced tier (same + hours, reviews, addressComponents)
+} as const;
+
 const MAX_MESSAGES_BYTES = 100_000;
 
 function cacheTokens(usage: Message["usage"]) {
   const u = usage as unknown as Record<string, unknown>;
   return {
-    read: (u["cache_read_input_tokens"] as number | null) ?? 0,
+    read:  (u["cache_read_input_tokens"]  as number | null) ?? 0,
     write: (u["cache_creation_input_tokens"] as number | null) ?? 0,
   };
 }
@@ -32,12 +38,9 @@ function calcCost(model: string, usage: Message["usage"]): number {
   ) / 1_000_000;
 }
 
-function extractResponseText(msg: Message): string {
-  return msg.content
-    .filter(c => c.type === "text")
-    .map(c => (c as { type: "text"; text: string }).text)
-    .join("\n")
-    .slice(0, 10_000);
+function deriveArea(operation: string): string {
+  if (operation.includes("import")) return "site_import";
+  return "site_build";
 }
 
 export interface LogAiCallOptions {
@@ -51,21 +54,22 @@ export interface LogAiCallOptions {
   durationMs: number;
 }
 
-/** Fire-and-forget — never throws. Returns the inserted row id (or null on failure). */
+/** Fire-and-forget — never throws. Returns the inserted cost_event id (or null on failure). */
 export async function logAiCall(opts: LogAiCallOptions): Promise<string | null> {
   try {
     const usage = opts.response.usage;
     const { read: cacheRead, write: cacheWrite } = cacheTokens(usage);
 
     const messagesJson = JSON.stringify(opts.messages);
-    const messagesStored = messagesJson.length > MAX_MESSAGES_BYTES
-      ? JSON.stringify([{ role: "truncated", content: `[${messagesJson.length} bytes — truncated]` }])
-      : messagesJson;
+    const messagesTruncated = messagesJson.length > MAX_MESSAGES_BYTES;
 
     const row = await db
-      .insertInto("ai_calls")
+      .insertInto("cost_events")
       .values({
         site_id: opts.siteId ?? null,
+        type: "ai",
+        vendor: "anthropic",
+        area: deriveArea(opts.operation),
         operation: opts.operation,
         model: opts.model,
         input_tokens: usage.input_tokens,
@@ -73,18 +77,57 @@ export async function logAiCall(opts: LogAiCallOptions): Promise<string | null> 
         cache_read_tokens: cacheRead,
         cache_write_tokens: cacheWrite,
         cost_usd: calcCost(opts.model, usage),
-        max_tokens: opts.maxTokens ?? null,
-        system_prompt: opts.systemPrompt?.slice(0, 10_000) ?? null,
-        messages: messagesStored,
-        response_text: extractResponseText(opts.response),
         duration_ms: opts.durationMs,
+        metadata: JSON.stringify({
+          max_tokens: opts.maxTokens ?? null,
+          messages_truncated: messagesTruncated,
+          response_chars: opts.response.content
+            .filter(c => c.type === "text")
+            .reduce((n, c) => n + (c as { text: string }).text.length, 0),
+        }),
       })
       .returning("id")
       .executeTakeFirst();
 
     return row?.id ?? null;
   } catch (err) {
-    console.warn({ err }, "ai_call log failed — non-fatal");
+    console.warn({ err }, "cost_event (ai) log failed — non-fatal");
+    return null;
+  }
+}
+
+export interface LogCostEventOptions {
+  siteId?: string | null;
+  type: "api" | "storage" | "dns" | "cdn";
+  vendor: string;
+  area: string;
+  operation: string;
+  costUsd: number;
+  durationMs?: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** Fire-and-forget — never throws. Returns the inserted cost_event id (or null on failure). */
+export async function logCostEvent(opts: LogCostEventOptions): Promise<string | null> {
+  try {
+    const row = await db
+      .insertInto("cost_events")
+      .values({
+        site_id: opts.siteId ?? null,
+        type: opts.type,
+        vendor: opts.vendor,
+        area: opts.area,
+        operation: opts.operation,
+        cost_usd: opts.costUsd,
+        duration_ms: opts.durationMs ?? null,
+        metadata: opts.metadata ? JSON.stringify(opts.metadata) : null,
+      })
+      .returning("id")
+      .executeTakeFirst();
+
+    return row?.id ?? null;
+  } catch (err) {
+    console.warn({ err }, "cost_event log failed — non-fatal");
     return null;
   }
 }

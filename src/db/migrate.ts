@@ -69,9 +69,10 @@ const sql = `
   -- Phase 8: Brand kit (colors, fonts, logo — separate from layout preset)
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS brand_kit JSONB;
 
-  -- Social proof: GMB rating + review count stored on business profile
+  -- Social proof: GMB rating, review count, and review snippets
   ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS gmb_rating NUMERIC(3,1);
   ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS gmb_review_count INTEGER;
+  ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS gmb_reviews JSONB;
 
   -- Phase 7: Media asset storage
   CREATE TABLE IF NOT EXISTS assets (
@@ -105,41 +106,65 @@ const sql = `
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
-  -- Phase 9: AI call logging — token cost, model, prompt/response, per-site
-  CREATE TABLE IF NOT EXISTS ai_calls (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    site_id          UUID REFERENCES sites(id) ON DELETE SET NULL,
-    operation        TEXT NOT NULL,
-    model            TEXT NOT NULL,
-    input_tokens     INTEGER NOT NULL DEFAULT 0,
-    output_tokens    INTEGER NOT NULL DEFAULT 0,
-    cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
-    cache_write_tokens INTEGER NOT NULL DEFAULT 0,
-    cost_usd         NUMERIC(10,6) NOT NULL DEFAULT 0,
-    max_tokens       INTEGER,
-    system_prompt    TEXT,
-    messages         JSONB,
-    response_text    TEXT,
-    duration_ms      INTEGER,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  -- Phase 9: Generalised cost tracking (AI, API, storage, DNS, etc.)
+  CREATE TABLE IF NOT EXISTS cost_events (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id            UUID REFERENCES sites(id) ON DELETE SET NULL,
+    type               TEXT NOT NULL DEFAULT 'ai',
+    vendor             TEXT NOT NULL DEFAULT 'anthropic',
+    area               TEXT NOT NULL DEFAULT 'site_build',
+    operation          TEXT NOT NULL,
+    model              TEXT,
+    input_tokens       INTEGER,
+    output_tokens      INTEGER,
+    cache_read_tokens  INTEGER,
+    cache_write_tokens INTEGER,
+    cost_usd           NUMERIC(10,6) NOT NULL DEFAULT 0,
+    duration_ms        INTEGER,
+    metadata           JSONB,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
-  CREATE INDEX IF NOT EXISTS ai_calls_site_id_idx ON ai_calls(site_id);
-  CREATE INDEX IF NOT EXISTS ai_calls_operation_idx ON ai_calls(operation);
-  CREATE INDEX IF NOT EXISTS ai_calls_created_at_idx ON ai_calls(created_at);
+  CREATE INDEX IF NOT EXISTS cost_events_site_id_idx  ON cost_events(site_id);
+  CREATE INDEX IF NOT EXISTS cost_events_operation_idx ON cost_events(operation);
+  CREATE INDEX IF NOT EXISTS cost_events_created_at_idx ON cost_events(created_at);
+
+  -- Backfill historical AI calls into cost_events (idempotent)
+  DO $$
+  BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ai_calls') THEN
+      INSERT INTO cost_events (id, site_id, type, vendor, area, operation, model,
+        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+        cost_usd, duration_ms, metadata, created_at)
+      SELECT id, site_id, 'ai', 'anthropic',
+        CASE WHEN operation ILIKE '%import%' THEN 'site_import' ELSE 'site_build' END,
+        operation, model, input_tokens, output_tokens,
+        cache_read_tokens, cache_write_tokens, cost_usd, duration_ms,
+        jsonb_build_object('max_tokens', max_tokens),
+        created_at
+      FROM ai_calls
+      ON CONFLICT (id) DO NOTHING;
+    END IF;
+  END $$;
 
   -- Phase 9: Quality signals — explicit ratings + implicit edit signals
   CREATE TABLE IF NOT EXISTS site_quality_signals (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-    ai_call_id  UUID REFERENCES ai_calls(id) ON DELETE SET NULL,
-    page_slug   TEXT,
-    action      TEXT NOT NULL,
-    rating      INTEGER CHECK (rating BETWEEN 1 AND 5),
-    metadata    JSONB,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    cost_event_id   UUID REFERENCES cost_events(id) ON DELETE SET NULL,
+    page_slug       TEXT,
+    action          TEXT NOT NULL,
+    rating          INTEGER CHECK (rating BETWEEN 1 AND 5),
+    metadata        JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS site_quality_signals_site_id_idx ON site_quality_signals(site_id);
-  CREATE INDEX IF NOT EXISTS site_quality_signals_ai_call_id_idx ON site_quality_signals(ai_call_id);
+  CREATE INDEX IF NOT EXISTS site_quality_signals_cost_event_id_idx ON site_quality_signals(cost_event_id);
+
+  -- Migrate legacy ai_call_id FK → cost_event_id, then drop ai_calls
+  ALTER TABLE site_quality_signals ADD COLUMN IF NOT EXISTS cost_event_id UUID REFERENCES cost_events(id) ON DELETE SET NULL;
+  UPDATE site_quality_signals SET cost_event_id = ai_call_id WHERE ai_call_id IS NOT NULL AND cost_event_id IS NULL;
+  ALTER TABLE site_quality_signals DROP COLUMN IF EXISTS ai_call_id;
+  DROP TABLE IF EXISTS ai_calls;
 
   -- Phase 10: Block-level generation instruction store (no code deploy to update)
   CREATE TABLE IF NOT EXISTS block_instructions (

@@ -10,7 +10,7 @@ import { scrapeWebsite } from "../lib/scrape.js";
 import type { ScrapeResult, ScrapedPage } from "../lib/scrape.js";
 import { extractBrandSignals, extractBrandKit, applyBrandKitToTheme, downloadSiteImage } from "../lib/brand.js";
 import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
-import { logAiCall } from "../lib/ai-logger.js";
+import { logAiCall, logCostEvent } from "../lib/ai-logger.js";
 import { fetchInstructions, mergeInstructions } from "../lib/block-instructions.js";
 
 const gmbProfileSchema = z.object({
@@ -25,6 +25,11 @@ const gmbProfileSchema = z.object({
   hours: z.string().max(1000).nullable().optional(),
   gmb_rating: z.number().min(1).max(5).nullable().optional(),
   gmb_review_count: z.number().int().min(0).nullable().optional(),
+  gmb_reviews: z.array(z.object({
+    author: z.string(),
+    rating: z.number(),
+    text: z.string(),
+  })).nullable().optional(),
 });
 
 const bodySchema = z.object({
@@ -167,10 +172,10 @@ interface PageResult {
   meta_description: string;
   sections: unknown[];
   gaps: string[];
-  aiCallId: string | null;
+  costEventId: string | null;
 }
 
-async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, siteId?: string): Promise<PageResult & { aiCallId: string | null }> {
+async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
   const toolSchema = buildPageToolSchema(instructions);
   const userMessage = buildPageUserMessage(page, siteName, images);
   const model = "claude-opus-4-7";
@@ -192,7 +197,7 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
   }, { timeout: 90_000 });
   const durationMs = Date.now() - t0;
 
-  const aiCallId = await logAiCall({
+  const costEventId = await logAiCall({
     siteId,
     operation: "import_page",
     model,
@@ -220,7 +225,7 @@ async function processPage(page: ScrapedPage, slug: string, siteName: string, im
     meta_description: String(input.meta_description ?? ""),
     sections,
     gaps,
-    aiCallId,
+    costEventId,
   };
 }
 
@@ -357,7 +362,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
         }
         pageResults.push(result);
         allGaps.push(...result.gaps);
-        sseWrite(reply, "ai_page_done", { slug, label: result.nav_label ?? label, blocks: result.sections.length, aiCallId: result.aiCallId });
+        sseWrite(reply, "ai_page_done", { slug, label: result.nav_label ?? label, blocks: result.sections.length, costEventId: result.costEventId });
       } catch (err) {
         sseWrite(reply, "error", { message: (err as Error).message });
         reply.raw.end();
@@ -368,7 +373,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     // 3. Assemble + validate full spec
     const specData = {
       version: 1,
-      pages: pageResults.map(({ gaps: _g, aiCallId: _a, ...p }) => p),
+      pages: pageResults.map(({ gaps: _g, costEventId: _c, ...p }) => p),
     };
 
     const parsed = specSchema.safeParse(specData);
@@ -422,6 +427,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           hours: p.hours ?? null,
           gmb_rating: p.gmb_rating ?? null,
           gmb_review_count: p.gmb_review_count ?? null,
+          gmb_reviews: p.gmb_reviews ? JSON.stringify(p.gmb_reviews) : null,
         };
         const existing = await db
           .selectFrom("business_profiles")

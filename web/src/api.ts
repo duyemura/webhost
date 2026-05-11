@@ -337,12 +337,19 @@ export interface PlaceSearchResult {
   isFitness: boolean;
 }
 
+export interface PlaceReview {
+  author: string;
+  rating: number;
+  text: string;
+}
+
 export interface PlaceDetail extends PlaceSearchResult {
   city: string | null;
   state: string | null;
   zip: string | null;
   country: string | null;
   hours: string | null;
+  reviews: PlaceReview[];
 }
 
 export const searchPlaces = (q: string) =>
@@ -356,7 +363,7 @@ export const getPlaceDetail = (id: string) =>
 export type QualityAction = "accepted" | "rebuilt" | "rated" | "section_edited" | "section_deleted" | "section_added";
 
 export interface QualitySignalBody {
-  ai_call_id?: string | null;
+  cost_event_id?: string | null;
   page_slug?: string | null;
   action: QualityAction;
   rating?: number | null;

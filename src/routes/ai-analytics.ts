@@ -5,7 +5,7 @@ import { registry } from "../blocks/index.js";
 import { config } from "../config.js";
 
 const signalBodySchema = z.object({
-  ai_call_id: z.string().uuid().nullable().optional(),
+  cost_event_id: z.string().uuid().nullable().optional(),
   page_slug: z.string().max(100).nullable().optional(),
   action: z.enum(["accepted", "rebuilt", "rated", "section_edited", "section_deleted", "section_added"]),
   rating: z.number().int().min(1).max(5).nullable().optional(),
@@ -48,7 +48,7 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
       .insertInto("site_quality_signals")
       .values({
         site_id: id,
-        ai_call_id: body.data.ai_call_id ?? null,
+        cost_event_id: body.data.cost_event_id ?? null,
         page_slug: body.data.page_slug ?? null,
         action: body.data.action,
         rating: body.data.rating ?? null,
@@ -63,21 +63,21 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
   // GET /api/ai-analytics — aggregate stats for the current user's sites
   app.get("/api/ai-analytics", async (req, reply) => {
     const bySite = await db
-      .selectFrom("ai_calls")
-      .innerJoin("sites", "sites.id", "ai_calls.site_id")
+      .selectFrom("cost_events")
+      .innerJoin("sites", "sites.id", "cost_events.site_id")
       .select(({ fn }) => [
-        "ai_calls.site_id",
+        "cost_events.site_id",
         "sites.name as site_name",
-        "ai_calls.operation",
-        "ai_calls.model",
-        fn.count<number>("ai_calls.id").as("call_count"),
-        fn.sum<number>("ai_calls.input_tokens").as("total_input_tokens"),
-        fn.sum<number>("ai_calls.output_tokens").as("total_output_tokens"),
-        fn.sum<number>("ai_calls.cost_usd").as("total_cost_usd"),
-        fn.avg<number>("ai_calls.duration_ms").as("avg_duration_ms"),
+        "cost_events.operation",
+        "cost_events.model",
+        fn.count<number>("cost_events.id").as("call_count"),
+        fn.sum<number>("cost_events.input_tokens").as("total_input_tokens"),
+        fn.sum<number>("cost_events.output_tokens").as("total_output_tokens"),
+        fn.sum<number>("cost_events.cost_usd").as("total_cost_usd"),
+        fn.avg<number>("cost_events.duration_ms").as("avg_duration_ms"),
       ])
       .where("sites.user_id", "=", req.user.sub)
-      .groupBy(["ai_calls.site_id", "sites.name", "ai_calls.operation", "ai_calls.model"])
+      .groupBy(["cost_events.site_id", "sites.name", "cost_events.operation", "cost_events.model"])
       .orderBy("total_cost_usd", "desc")
       .execute();
 
@@ -97,8 +97,8 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
     return { by_site: bySite, signals };
   });
 
-  // GET /api/sites/:id/ai-calls — recent AI calls for a site
-  app.get("/api/sites/:id/ai-calls", async (req, reply) => {
+  // GET /api/sites/:id/cost-events — recent cost events for a site
+  app.get("/api/sites/:id/cost-events", async (req, reply) => {
     const { id } = req.params as { id: string };
 
     const site = await db
@@ -110,18 +110,18 @@ export const aiAnalyticsRoutes: FastifyPluginAsync = async (app) => {
 
     if (!site) return reply.notFound();
 
-    const calls = await db
-      .selectFrom("ai_calls")
+    const events = await db
+      .selectFrom("cost_events")
       .select([
-        "id", "operation", "model", "input_tokens", "output_tokens",
-        "cost_usd", "duration_ms", "created_at",
+        "id", "type", "vendor", "area", "operation", "model",
+        "input_tokens", "output_tokens", "cost_usd", "duration_ms", "created_at",
       ])
       .where("site_id", "=", id)
       .orderBy("created_at", "desc")
       .limit(100)
       .execute();
 
-    return calls;
+    return events;
   });
 
   // ── Block instruction store — admin only ─────────────────────────────────────

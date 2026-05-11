@@ -6,7 +6,7 @@ export interface Database {
   scripts: ScriptsTable;
   business_profiles: BusinessProfilesTable;
   assets: AssetsTable;
-  ai_calls: AiCallsTable;
+  cost_events: CostEventsTable;
   site_quality_signals: SiteQualitySignalsTable;
   block_instructions: BlockInstructionsTable;
 }
@@ -79,6 +79,7 @@ export interface BusinessProfilesTable {
   hours: string | null;
   gmb_rating: number | null;
   gmb_review_count: number | null;
+  gmb_reviews: unknown | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -111,31 +112,31 @@ export type Asset = Selectable<AssetsTable>;
 export type NewAsset = Insertable<AssetsTable>;
 export type AssetUpdate = Updateable<AssetsTable>;
 
-export interface AiCallsTable {
+export interface CostEventsTable {
   id: Generated<string>;
   site_id: string | null;
+  type: string;
+  vendor: string;
+  area: string;
   operation: string;
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_tokens: number;
-  cache_write_tokens: number;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
   cost_usd: number;
-  max_tokens: number | null;
-  system_prompt: string | null;
-  messages: unknown | null;
-  response_text: string | null;
   duration_ms: number | null;
+  metadata: unknown | null;
   created_at: Generated<Date>;
 }
 
-export type AiCall = Selectable<AiCallsTable>;
-export type NewAiCall = Insertable<AiCallsTable>;
+export type CostEvent = Selectable<CostEventsTable>;
+export type NewCostEvent = Insertable<CostEventsTable>;
 
 export interface SiteQualitySignalsTable {
   id: Generated<string>;
   site_id: string;
-  ai_call_id: string | null;
+  cost_event_id: string | null;
   page_slug: string | null;
   action: string;
   rating: number | null;

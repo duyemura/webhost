@@ -1,6 +1,12 @@
 import type { BusinessProfile } from "../db/types.js";
 import { esc } from "./escape.js";
 
+interface GmbReview {
+  author: string;
+  rating: number;
+  text: string;
+}
+
 export function buildSocialProofBar(profile: BusinessProfile | null): string {
   if (!profile) return "";
 
@@ -20,6 +26,16 @@ export function buildSocialProofBar(profile: BusinessProfile | null): string {
   }
   if (profile.phone) {
     items.push(profile.phone);
+  }
+
+  // Inject up to 3 review snippets (truncated to ~80 chars)
+  if (Array.isArray(profile.gmb_reviews)) {
+    for (const r of (profile.gmb_reviews as GmbReview[]).slice(0, 3)) {
+      if (!r.text) continue;
+      const snippet = r.text.length > 80 ? r.text.slice(0, 77) + "…" : r.text;
+      const stars = "★".repeat(Math.min(5, Math.round(r.rating)));
+      items.push(`${stars} "${snippet}"`);
+    }
   }
 
   if (items.length < 2) return "";

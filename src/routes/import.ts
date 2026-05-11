@@ -206,7 +206,7 @@ function buildPageToolSchema(instructions: import("../lib/block-instructions.js"
   };
 }
 
-function sanitizeSlug(raw: string): string {
+export function sanitizeSlug(raw: string): string {
   return raw
     .toLowerCase()
     .replace(/https?:\/\/[^\s]*/g, "")

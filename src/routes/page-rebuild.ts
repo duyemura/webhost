@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { db } from "../db/client.js";
 import { getCachedCrawl } from "../lib/crawl-cache.js";
 import { fetchInstructions } from "../lib/block-instructions.js";
-import { processPage, type DownloadedImage } from "./import.js";
+import { processPage, sanitizeSlug, type DownloadedImage } from "./import.js";
 import type { ScrapedPage } from "../lib/scrape.js";
 import { specSchema } from "./schemas.js";
 
@@ -34,11 +34,11 @@ export const pageRebuildRoutes: FastifyPluginAsync = async (app) => {
     const scrape = await getCachedCrawl(sourceUrl);
     if (!scrape) return reply.badRequest("No cached crawl found for this site. Refresh the crawl by doing a full rebuild with 'Force re-crawl' enabled.");
 
-    // Find the scraped page matching this slug
+    // Find the scraped page matching this slug — apply same sanitization as import
     let scrapedPage: ScrapedPage | undefined;
     for (let i = 0; i < scrape.pages.length; i++) {
       const page = scrape.pages[i];
-      const pageSlug = i === 0 ? "index" : page.slug || `page-${i}`;
+      const pageSlug = i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`);
       if (pageSlug === slug) {
         scrapedPage = page;
         break;

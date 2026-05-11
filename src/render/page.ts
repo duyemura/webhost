@@ -28,7 +28,7 @@ export function buildPage(opts: PageBuildOptions): string {
   const themeCSS = themeToCSS(theme);
   const fontsUrl = googleFontsUrl(theme);
   const siteName = profile?.biz_name ?? spec.pages[0]?.title ?? "";
-  const nav = buildNav(spec, theme, siteName, requestPath);
+  const nav = buildNav(spec, theme, siteName, requestPath, logoUrl ?? null);
   const footer = buildFooter(spec, profile, logoUrl ?? null);
   const headScripts = buildHeadSnippets(scripts);
   const bodyScripts = buildBodySnippets(scripts);

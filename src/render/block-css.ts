@@ -25,70 +25,83 @@ export const BLOCK_CSS = `
   position: sticky;
   top: 0;
   z-index: 100;
+  /* Transparent over hero; .site-nav--scrolled adds solid bg */
+  background: transparent;
+  transition: background 0.25s, box-shadow 0.25s;
+  /* Pull the first section up so hero sits behind the nav */
+  margin-bottom: -5rem;
+}
+.site-nav--scrolled {
   background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 1px 0 var(--color-border);
 }
 .site-nav__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 4rem;
+  height: 5rem;
 }
-.site-nav__logo {
+/* Logo */
+.site-nav__logo { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+.site-nav__logo-img { height: 48px; width: auto; max-width: 180px; object-fit: contain; }
+.site-nav__logo-text {
   font-family: var(--font-heading);
   font-weight: var(--font-heading-weight);
-  font-size: 1.25rem;
-  text-decoration: none;
+  font-size: 1.125rem;
   color: var(--color-fg);
+  text-transform: var(--heading-transform);
+  letter-spacing: var(--heading-tracking);
 }
+/* Nav links */
 .site-nav__links {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.125rem;
   list-style: none;
+  padding: 0;
+  margin: 0;
 }
-.site-nav__links a {
-  text-decoration: none;
-  color: var(--color-fg);
-  font-size: 0.9375rem;
-  transition: color 0.15s;
-}
-.site-nav__links a:hover { color: var(--color-primary); }
-.site-nav__cta { margin-left: 1rem; }
-
-/* dropdown groups */
-.site-nav__group { position: relative; }
+.site-nav__links > li > a,
 .site-nav__group-trigger {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.9375rem;
+  gap: 0.3rem;
+  padding: 0.5rem 0.75rem;
+  text-decoration: none;
   color: var(--color-fg);
+  font-family: var(--font-heading);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   background: none;
   border: none;
-  padding: 0;
   cursor: pointer;
-  user-select: none;
-  transition: color 0.15s;
+  transition: color 0.15s, opacity 0.15s;
+  white-space: nowrap;
 }
+.site-nav__links > li > a:hover,
 .site-nav__group:hover .site-nav__group-trigger,
 .site-nav__group:focus-within .site-nav__group-trigger,
-.site-nav__group--active .site-nav__group-trigger { color: var(--color-primary); }
-.site-nav__chevron { transition: transform 0.15s; }
+.site-nav__group--active .site-nav__group-trigger,
+.site-nav__links > li > a[aria-current="page"] { opacity: 0.6; }
+/* Dropdown */
+.site-nav__chevron { transition: transform 0.2s; }
+.site-nav__group { position: relative; }
 .site-nav__group:hover .site-nav__chevron,
 .site-nav__group:focus-within .site-nav__chevron { transform: rotate(180deg); }
 .site-nav__dropdown {
   display: none;
   position: absolute;
-  top: calc(100% + 0.5rem);
+  top: calc(100% + 0.25rem);
   left: 50%;
   transform: translateX(-50%);
-  min-width: 12rem;
+  min-width: 13rem;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-  padding: 0.375rem 0;
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+  padding: 0.5rem 0;
   list-style: none;
   z-index: 200;
   white-space: nowrap;
@@ -97,20 +110,29 @@ export const BLOCK_CSS = `
 .site-nav__group:focus-within .site-nav__dropdown { display: block; }
 .site-nav__dropdown li a {
   display: block;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
   color: var(--color-fg);
   text-decoration: none;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.1s;
 }
 .site-nav__dropdown li a:hover,
-.site-nav__dropdown li a[aria-current="page"] {
-  background: var(--color-muted);
-  color: var(--color-primary);
+.site-nav__dropdown li a[aria-current="page"] { background: var(--color-muted); }
+/* CTA */
+.site-nav__cta { margin-left: 0.75rem; }
+.site-nav__cta-btn {
+  font-family: var(--font-heading) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  padding: 0.6rem 1.25rem !important;
+  white-space: nowrap;
 }
-
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .site-nav__links { display: none; }
+  .site-nav { margin-bottom: -4rem; }
+  .site-nav__inner { height: 4rem; }
 }
 
 /* ── footer ── */

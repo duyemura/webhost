@@ -675,57 +675,11 @@ function CreateSiteDialog({
                 )}
               </div>
 
-              {!ratingSubmitted && pageRatings.length > 0 && (
-                <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-                  <p className="tw-text-xs tw-font-medium tw-text-foreground">How well did the AI capture each page? (helps us improve)</p>
-                  {pageRatings.map((item) => (
-                    <div key={item.slug} className="tw-flex tw-items-center tw-justify-between">
-                      <span className="tw-text-xs tw-text-muted-foreground">{item.label}</span>
-                      <div className="tw-flex tw-gap-0.5">
-                        {[1,2,3,4,5].map(star => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setPageRatings(prev => prev.map(p => p.slug === item.slug ? { ...p, rating: star } : p))}
-                            className={`tw-text-lg tw-leading-none tw-transition-colors ${(item.rating ?? 0) >= star ? "tw-text-yellow-400" : "tw-text-muted-foreground/30 hover:tw-text-yellow-300"}`}
-                          >★</button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="tw-flex tw-gap-2 tw-pt-1">
-                    <Button size="sm" variant="outline" type="button"
-                      onClick={() => { setRatingSubmitted(true); if (pendingSiteId) { handleClose(false); navigate(`/sites/${pendingSiteId}`); } }}
-                    >
-                      Skip
-                    </Button>
-                    <Button size="sm" type="button"
-                      disabled={pageRatings.every(p => p.rating === null)}
-                      onClick={async () => {
-                        if (!pendingSiteId) return;
-                        await Promise.allSettled(
-                          pageRatings.filter(p => p.rating !== null).map(p =>
-                            postQualitySignal(pendingSiteId, { cost_event_id: p.costEventId, page_slug: p.slug, action: "rated", rating: p.rating! })
-                          )
-                        );
-                        setRatingSubmitted(true);
-                        handleClose(false);
-                        navigate(`/sites/${pendingSiteId}`);
-                      }}
-                    >
-                      Submit rating
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {(ratingSubmitted || pageRatings.length === 0) && (
-                <Button size="sm" type="button"
-                  onClick={() => { handleClose(false); if (pendingSiteId) navigate(`/sites/${pendingSiteId}`); }}
-                >
-                  Open site editor
-                </Button>
-              )}
+              <Button size="sm" type="button"
+                onClick={() => { handleClose(false); if (pendingSiteId) navigate(`/sites/${pendingSiteId}`); }}
+              >
+                Open site editor
+              </Button>
             </div>
           )}
 

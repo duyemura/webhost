@@ -6,8 +6,10 @@ const FOOTER_SLUG_RE = /privacy|terms|cancell|cookie|sitemap|legal|disclaimer|ac
 const FOOTER_LABEL_RE = /^(privacy|terms|cancell|cookie|sitemap|legal|disclaimer|refund|blog)/i;
 // Operational/account pages that pollute the nav
 const OPERATIONAL_RE = /\b(pause|cancel|freeze|suspend|billing|account|login|register|sign.?up|member.?portal|waiver|liability|faq)\b/i;
+// Conversion/CTA pages — these should be the CTA button, not a nav link
+const CTA_SLUG_RE = /drop.?in|no.?sweat|intro|free.?trial|get.?started|join|start/i;
 
-const MAX_NAV_ITEMS = 5; // max top-level entries before the CTA button
+const MAX_NAV_ITEMS = 4; // max top-level entries before the CTA button
 
 function isNavHidden(p: { slug: string; nav_label?: string; title?: string }): boolean {
   if (FOOTER_SLUG_RE.test(p.slug)) return true;
@@ -24,7 +26,17 @@ export function buildNav(
   requestPath: string,
   logoUrl: string | null = null,
 ): string {
-  const pages = spec.pages.filter(p => p.slug !== "index" && !isNavHidden(p));
+  // Determine CTA target first so we can exclude it from the nav links
+  const ctaPage = spec.pages.find(p => CTA_SLUG_RE.test(p.slug))
+    ?? spec.pages.find(p => /^contact/.test(p.slug))
+    ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p));
+  const ctaSlug = ctaPage?.slug ?? null;
+
+  const pages = spec.pages.filter(p =>
+    p.slug !== "index" &&
+    p.slug !== ctaSlug &&   // CTA target lives in button, not nav links
+    !isNavHidden(p)
+  );
 
   // Group nav pages — normalize group key to lowercase to deduplicate case variants
   const groupKeyMap = new Map<string, string>(); // lc → first-seen display heading
@@ -51,6 +63,7 @@ export function buildNav(
 
       const heading = groupKeyMap.get(lc)!;
       const children = groupMap.get(lc)!;
+
       // Deduplicate children by slug and by normalized label
       const seenSlugs = new Set<string>();
       const seenLabels = new Set<string>();
@@ -61,6 +74,16 @@ export function buildNav(
         seenLabels.add(label);
         return true;
       });
+
+      // Single-child group → flatten to a plain link (no dropdown needed)
+      if (uniqueChildren.length <= 1) {
+        const only = uniqueChildren[0];
+        if (!only) continue;
+        const href = `/${only.slug}`;
+        const active = requestPath === href || requestPath.startsWith(`/${only.slug}/`);
+        rendered.push(`<li><a href="${esc(href)}"${active ? ' aria-current="page"' : ""}>${esc(only.nav_label || only.title)}</a></li>`);
+        continue;
+      }
 
       const groupActive = uniqueChildren.some(c => requestPath === `/${c.slug}` || requestPath.startsWith(`/${c.slug}/`));
       const dropdownItems = uniqueChildren.map(c => {
@@ -88,10 +111,7 @@ export function buildNav(
   // Cap to MAX_NAV_ITEMS so the CTA button is never pushed off-screen
   const visibleItems = rendered.slice(0, MAX_NAV_ITEMS);
 
-  // CTA: always present — prefer a "get started" / intro page, then contact, then first nav page
-  const ctaPage = spec.pages.find(p => /intro|start|trial|free|join/.test(p.slug))
-    ?? spec.pages.find(p => /^contact/.test(p.slug))
-    ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p));
+  // CTA: always present, always conversion-focused
   const ctaHref = ctaPage ? `/${ctaPage.slug}` : "/contact";
   const ctaLabel = ctaPage?.nav_label ?? "Get started";
   const ctaHtml = `<li class="site-nav__cta"><a href="${esc(ctaHref)}" class="site-nav__cta-btn">${esc(ctaLabel)}</a></li>`;

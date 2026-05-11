@@ -51,7 +51,11 @@ Guidelines:
 - Write a short meta_description (max 160 chars) that describes the page.
 - In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
 - Nav exclusions: Privacy Policy, Terms of Use, Terms & Conditions, Cancellation Policy, Cookie Policy, Sitemap, any legal/policy pages, AND any operational/account pages (Pause Membership, Freeze Account, Member Portal, Login, Register, Waiver, FAQ) must NOT appear in nav. Generate them as pages but they will be linked from the footer only. Blog pages must also be excluded (no CMS exists).
-- Nav budget: the entire site should have AT MOST 5 top-level nav entries (standalone links + dropdown groups combined). If the source site has more, consolidate related pages under nav_group dropdowns. A nav with 3–4 entries plus the CTA button is ideal. Never create more than 2 dropdown groups.
+- Nav budget: AT MOST 4 top-level nav entries (standalone links + dropdown groups combined). The 5th slot is always the CTA button. A nav with 3 entries + CTA is ideal. Never create more than 2 dropdown groups.
+- CTA page: if the site has a "drop-in", "no sweat intro", "free trial", "get started", or "join" page, that page is ALWAYS the nav CTA — give it nav_label like "Drop in", "Free intro", or "Get started". Do NOT include it as a regular nav link; it will be rendered as the prominent button. If no such page exists, the contact page serves as CTA.
+- Drop-in / intro pages: ALWAYS give these a standalone page with a dedicated slug (e.g. "drop-in", "free-intro", "no-sweat-intro"). Never bury them inside a Programs dropdown.
+- Programs dropdown: ONLY use nav_group "Programs" for pages that represent a specific workout type, class format, or service (e.g. CrossFit, Olympic Lifting, Kids, Open Gym). Never put Schedule, Coaches, About, Pricing, or Contact inside Programs.
+- Dropdowns require 2+ children: never assign nav_group to a page if it would be the only page in that group — use a standalone link instead.
 - Contact pages: always generate a simple contact-form block (type: "contact-form") with fields for name, email, phone (optional), and message. Do not attempt to replicate embedded third-party form widgets.
 - If the page appears to be a blog index or individual blog post, map it as a single rich-text block with a brief placeholder noting the blog will be managed separately.
 - Images: if the user message includes a "Downloaded images" list, those are real asset URLs — USE THEM. Rules:

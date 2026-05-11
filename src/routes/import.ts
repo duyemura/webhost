@@ -495,6 +495,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       return reply;
     }
 
+    const gmb = body.data.gmb_profile;
     const summary = {
       source_url: body.data.url,
       pages_scraped: scrape.pages.length,
@@ -502,6 +503,12 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
       pages_generated: parsed.data.pages.length,
       blocks_generated: parsed.data.pages.reduce((n, p) => n + p.sections.length, 0),
       gaps: [...new Set(allGaps)],
+      logo_found: !!brandKit?.logo_url,
+      brand_color: brandKit?.primary ?? null,
+      brand_font: brandKit?.heading_font ?? null,
+      images_downloaded: downloadedImages.length,
+      gmb_rating: gmb?.gmb_rating ?? null,
+      gmb_review_count: gmb?.gmb_review_count ?? null,
     };
 
     sseWrite(reply, "complete", { site: updated, summary });

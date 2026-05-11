@@ -93,6 +93,26 @@ function SiteCard({ site }: { site: Site }) {
   );
 }
 
+function SummaryRow({ label, detail, ok = true }: { label: string; detail?: string; ok?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="tw-px-3 tw-py-2.5">
+      <button
+        type="button"
+        className="tw-flex tw-items-center tw-gap-2 tw-w-full tw-text-left"
+        onClick={() => detail && setOpen(v => !v)}
+      >
+        <CheckCircle2 className={`tw-h-3.5 tw-w-3.5 tw-shrink-0 ${ok ? "tw-text-success" : "tw-text-muted-foreground"}`} />
+        <span className="tw-text-sm tw-flex-1 tw-text-foreground">{label}</span>
+        {detail && <span className="tw-text-xs tw-text-muted-foreground">{open ? "Hide" : "Details"}</span>}
+      </button>
+      {open && detail && (
+        <p className="tw-mt-1 tw-pl-5 tw-text-xs tw-text-muted-foreground">{detail}</p>
+      )}
+    </div>
+  );
+}
+
 type BuildMode = "import" | "generate";
 
 function CreateSiteDialog({
@@ -641,31 +661,55 @@ function CreateSiteDialog({
             <p className="tw-text-sm tw-text-error">{importError}</p>
           )}
 
-          {/* ── Import success + rating ── */}
+          {/* ── Import success summary ── */}
           {importSummary && (
-            <div className="tw-space-y-3">
-              <div className="tw-rounded-lg tw-border tw-border-border tw-p-3 tw-space-y-2">
-                <div className="tw-flex tw-items-center tw-gap-2">
-                  <CheckCircle2 className="tw-h-4 tw-w-4 tw-text-success tw-shrink-0" />
-                  <p className="tw-text-sm tw-font-medium">
-                    Imported {importSummary.pages_generated} pages · {importSummary.blocks_generated} blocks
-                  </p>
-                </div>
+            <div className="tw-space-y-2">
+              <p className="tw-text-sm tw-font-semibold tw-text-foreground">Your website is ready</p>
+              <div className="tw-rounded-lg tw-border tw-border-border tw-divide-y tw-divide-border">
+
+                {/* Pages */}
+                <SummaryRow
+                  label={`${importSummary.pages_generated} pages built`}
+                  detail={`${importSummary.blocks_generated} content blocks · scanned ${importSummary.pages_scraped} pages from original site`}
+                />
+
+                {/* Brand */}
+                <SummaryRow
+                  label={importSummary.logo_found ? "Brand extracted — logo, colors & fonts" : "Brand colors & fonts extracted"}
+                  detail={[importSummary.brand_color, importSummary.brand_font].filter(Boolean).join(" · ") || "Default brand applied"}
+                />
+
+                {/* Media */}
+                <SummaryRow
+                  label={importSummary.images_downloaded > 0 ? `${importSummary.images_downloaded} images imported` : "No images found"}
+                  ok={importSummary.images_downloaded > 0}
+                  detail="Images sourced from original site and optimized for web"
+                />
+
+                {/* Social proof */}
+                {importSummary.gmb_rating != null && (
+                  <SummaryRow
+                    label={`Social proof — ${importSummary.gmb_rating.toFixed(1)}★ Google rating${importSummary.gmb_review_count ? ` · ${importSummary.gmb_review_count} reviews` : ""}`}
+                    detail="Rating and review snippets will scroll below your hero section"
+                  />
+                )}
+
+                {/* Gaps */}
                 {importSummary.gaps.length > 0 && (
-                  <div className="tw-rounded tw-bg-warning/10 tw-border tw-border-warning/20 tw-p-2.5 tw-space-y-1.5">
+                  <div className="tw-px-3 tw-py-2.5">
                     <button
                       type="button"
-                      className="tw-flex tw-items-center tw-gap-1.5 tw-w-full tw-text-left"
+                      className="tw-flex tw-items-center tw-gap-2 tw-w-full tw-text-left"
                       onClick={() => setShowGaps(v => !v)}
                     >
                       <AlertTriangle className="tw-h-3.5 tw-w-3.5 tw-text-warning tw-shrink-0" />
-                      <p className="tw-text-xs tw-font-medium tw-text-warning tw-flex-1">
-                        {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} couldn&apos;t be fully mapped
-                      </p>
-                      <span className="tw-text-xs tw-text-warning/70">{showGaps ? "Hide" : "Show"}</span>
+                      <span className="tw-text-sm tw-flex-1 tw-text-foreground">
+                        {importSummary.gaps.length} section{importSummary.gaps.length > 1 ? "s" : ""} need attention
+                      </span>
+                      <span className="tw-text-xs tw-text-muted-foreground">{showGaps ? "Hide" : "Details"}</span>
                     </button>
                     {showGaps && (
-                      <ul className="tw-space-y-0.5 tw-max-h-40 tw-overflow-y-auto">
+                      <ul className="tw-mt-2 tw-space-y-0.5 tw-max-h-40 tw-overflow-y-auto tw-pl-5">
                         {importSummary.gaps.map((gap, i) => (
                           <li key={i} className="tw-text-xs tw-text-muted-foreground">• {gap}</li>
                         ))}
@@ -675,7 +719,7 @@ function CreateSiteDialog({
                 )}
               </div>
 
-              <Button size="sm" type="button"
+              <Button size="sm" type="button" className="tw-w-full"
                 onClick={() => { handleClose(false); if (pendingSiteId) navigate(`/sites/${pendingSiteId}`); }}
               >
                 Open site editor

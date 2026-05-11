@@ -198,6 +198,12 @@ export interface ImportSummary {
   pages_generated: number;
   blocks_generated: number;
   gaps: string[];
+  logo_found: boolean;
+  brand_color: string | null;
+  brand_font: string | null;
+  images_downloaded: number;
+  gmb_rating: number | null;
+  gmb_review_count: number | null;
 }
 
 export const importFromUrl = (siteId: string, body: { url: string; theme_preset?: string }) =>

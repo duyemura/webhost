@@ -115,8 +115,8 @@ export const BLOCK_CSS = `
 
 /* ── footer ── */
 .site-footer {
-  background: #0a0a0a;
-  color: #a1a1aa;
+  background: var(--color-footer-bg);
+  color: var(--color-footer-fg);
   padding: 4rem 0 0;
 }
 .site-footer__body {
@@ -131,15 +131,16 @@ export const BLOCK_CSS = `
   gap: 1rem;
 }
 .site-footer__logo { display: inline-block; text-decoration: none; }
-.site-footer__logo-img { max-height: 64px; width: auto; filter: brightness(0) invert(1); }
+.site-footer__logo-img { max-height: 64px; width: auto; opacity: 0.9; }
 .site-footer__logo-text {
   font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1.125rem;
-  color: #fff;
+  color: var(--color-footer-heading);
   letter-spacing: 0.02em;
+  text-transform: var(--heading-transform);
 }
-.site-footer__hours { font-size: 0.8125rem; color: #71717a; line-height: 1.6; }
+.site-footer__hours { font-size: 0.8125rem; color: var(--color-footer-fg); line-height: 1.6; }
 .site-footer__cols {
   flex: 1;
   display: flex;
@@ -153,29 +154,29 @@ export const BLOCK_CSS = `
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--color-footer-heading);
   margin-bottom: 1.25rem;
 }
 .site-footer__links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 .site-footer__links a {
-  color: #a1a1aa;
+  color: var(--color-footer-fg);
   text-decoration: none;
   font-size: 0.9375rem;
   transition: color 0.15s;
 }
-.site-footer__links a:hover { color: #fff; }
+.site-footer__links a:hover { color: var(--color-footer-heading); }
 .site-footer__address { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9375rem; line-height: 1.6; }
 .site-footer__address p { margin: 0; }
-.site-footer__address a { color: #a1a1aa; text-decoration: none; transition: color 0.15s; }
-.site-footer__address a:hover { color: #fff; }
+.site-footer__address a { color: var(--color-footer-fg); text-decoration: none; transition: color 0.15s; }
+.site-footer__address a:hover { color: var(--color-footer-heading); }
 .site-footer__bottom {
-  border-top: 1px solid #27272a;
+  border-top: 1px solid var(--color-footer-border);
   padding: 1.5rem 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.site-footer__copy { font-size: 0.8125rem; color: #52525b; margin: 0; }
+.site-footer__copy { font-size: 0.8125rem; color: var(--color-footer-fg); margin: 0; opacity: 0.6; }
 @media (max-width: 768px) {
   .site-footer__body { flex-direction: column; gap: 2.5rem; }
   .site-footer__brand { flex: unset; }

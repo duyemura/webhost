@@ -20,8 +20,46 @@ const SCALE_MAP = {
   xl:     { h1: "clamp(3rem, 8vw, 7rem)", h2: "clamp(2rem, 5.5vw, 5rem)", h3: "clamp(1.5rem, 3vw, 2.5rem)" },
 };
 
+function hexLuminance(hex: string): number {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+function toHex(n: number): string {
+  return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+}
+
+// Mix hex color toward white by `amount` (0–1)
+function lighten(hex: string, amount: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `#${toHex(r + (255 - r) * amount)}${toHex(g + (255 - g) * amount)}${toHex(b + (255 - b) * amount)}`;
+}
+
+// Mix hex color toward black by `amount` (0–1)
+function darken(hex: string, amount: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `#${toHex(r * (1 - amount))}${toHex(g * (1 - amount))}${toHex(b * (1 - amount))}`;
+}
+
 export function themeToCSS(theme: Theme): string {
   const scale = SCALE_MAP[theme.typography.heading_scale ?? "normal"];
+
+  // Footer vars: dark themes keep their canvas; light themes invert to a dark footer
+  const isDark = hexLuminance(theme.colors.background) < 0.4;
+  const footerBg   = isDark ? theme.colors.surface   : theme.colors.foreground;
+  const footerFg   = isDark ? theme.colors.muted_foreground : lighten(theme.colors.background, 0.55);
+  const footerHead = isDark ? theme.colors.foreground : theme.colors.background;
+  const footerBorder = isDark ? theme.colors.border   : darken(theme.colors.foreground, 0.25);
+
   return `:root {
   --color-primary: ${theme.colors.primary};
   --color-primary-fg: ${theme.colors.primary_foreground};
@@ -34,6 +72,10 @@ export function themeToCSS(theme: Theme): string {
   --color-accent: ${theme.colors.accent};
   --color-border: ${theme.colors.border};
   --color-surface: ${theme.colors.surface};
+  --color-footer-bg: ${footerBg};
+  --color-footer-fg: ${footerFg};
+  --color-footer-heading: ${footerHead};
+  --color-footer-border: ${footerBorder};
   --font-heading: '${theme.typography.heading_font}', system-ui, sans-serif;
   --font-body: '${theme.typography.body_font}', system-ui, sans-serif;
   --font-heading-weight: ${theme.typography.heading_weight};

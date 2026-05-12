@@ -117,6 +117,9 @@ export interface BlockCatalogEntry {
   label: string;
   description: string;
   defaultSection: () => SiteSection;
+  /** Blank item templates for each array field — keyed by field name.
+   *  Used by the editor to add items to empty arrays without losing field shape. */
+  itemTemplates?: Record<string, Record<string, string>>;
 }
 
 function uuid(): string {
@@ -141,10 +144,11 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
       id: uuid(), type: "features", headline: "Why choose us",
       items: [
         { icon: "star", title: "Feature one", description: "Describe this feature." },
-        { icon: "star", title: "Feature two", description: "Describe this feature." },
-        { icon: "star", title: "Feature three", description: "Describe this feature." },
+        { icon: "check", title: "Feature two", description: "Describe this feature." },
+        { icon: "users", title: "Feature three", description: "Describe this feature." },
       ],
     }),
+    itemTemplates: { items: { icon: "star", title: "", description: "" } },
   },
   {
     type: "about",
@@ -158,8 +162,9 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
     description: "Grid of program cards",
     defaultSection: () => ({
       id: uuid(), type: "programs", headline: "Our programs",
-      items: [{ name: "Program one", description: "What this program offers." }],
+      items: [{ name: "Program one", description: "What this program offers.", image_url: "", tag: "" }],
     }),
+    itemTemplates: { items: { name: "", description: "", image_url: "", tag: "" } },
   },
   {
     type: "pricing",
@@ -178,6 +183,7 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
       id: uuid(), type: "testimonials", headline: "What members say",
       items: [{ quote: "This changed my life!", name: "Alex M.", role: "Member" }],
     }),
+    itemTemplates: { items: { quote: "", name: "", role: "" } },
   },
   {
     type: "reviews",
@@ -185,8 +191,9 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
     description: "Star-rated review cards",
     defaultSection: () => ({
       id: uuid(), type: "reviews", headline: "Member reviews",
-      items: [{ text: "Absolutely love it!", author: "Jordan S.", rating: 5, platform: "Google" }],
+      items: [{ text: "Absolutely love it!", author: "Jordan S.", rating: "5", platform: "Google" }],
     }),
+    itemTemplates: { items: { text: "", author: "", rating: "5", platform: "Google" } },
   },
   {
     type: "faq",
@@ -199,6 +206,7 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
         { question: "Do I need to be fit to start?", answer: "No — all levels welcome." },
       ],
     }),
+    itemTemplates: { items: { question: "", answer: "" } },
   },
   {
     type: "team",
@@ -206,8 +214,13 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
     description: "Staff profile grid",
     defaultSection: () => ({
       id: uuid(), type: "team", headline: "Meet our coaches",
-      members: [{ name: "Coach Name", role: "Head Coach", bio: "Brief bio here." }],
+      members: [
+        { name: "Alex Rivera", role: "Head Coach", bio: "10+ years of coaching experience. Specializes in strength and conditioning for athletes of all levels.", photo_url: "" },
+        { name: "Jordan Hayes", role: "CrossFit Coach", bio: "CrossFit Level 2 certified. Passionate about helping beginners build confidence and consistency.", photo_url: "" },
+        { name: "Morgan Kim", role: "Nutrition Coach", bio: "Certified nutrition coach focused on performance fueling and sustainable lifestyle habits.", photo_url: "" },
+      ],
     }),
+    itemTemplates: { members: { name: "", role: "", bio: "", photo_url: "" } },
   },
   {
     type: "gallery",
@@ -215,8 +228,9 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
     description: "Photo grid",
     defaultSection: () => ({
       id: uuid(), type: "gallery", headline: "Our facility",
-      images: [{ url: "https://placehold.co/800x600", alt: "Photo 1" }],
+      images: [{ url: "", alt: "" }],
     }),
+    itemTemplates: { images: { url: "", alt: "" } },
   },
   {
     type: "stats",
@@ -230,6 +244,7 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
         { value: "20+", label: "Classes/week" },
       ],
     }),
+    itemTemplates: { items: { value: "", label: "" } },
   },
   {
     type: "video",

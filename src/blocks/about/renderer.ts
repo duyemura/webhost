@@ -1,4 +1,4 @@
-import type { Theme } from "../types.js";
+import type { Theme, SiteCta } from "../types.js";
 import type { BusinessProfile } from "../../db/types.js";
 import { esc } from "../../render/escape.js";
 import { interpolate } from "../../render/interpolate.js";
@@ -11,8 +11,9 @@ interface AboutFields {
   image_position?: "left" | "right";
 }
 
-export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
+export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null, siteCta?: SiteCta): string {
   const s = section as unknown as AboutFields;
+  const ctaUrl = siteCta?.url ?? s.cta?.url ?? "";
   const imgLeft = s.image_position === "left";
   const di = theme.style_hint === "dark-industrial";
 
@@ -22,7 +23,7 @@ export function render(section: Record<string, unknown>, theme: Theme, profile: 
   const textEl = `<div class="block-about__text">
     ${s.headline ? `<h2>${esc(interpolate(s.headline, profile))}</h2>` : ""}
     <p>${esc(interpolate(s.body, profile))}</p>
-    ${s.cta ? `<a href="${esc(s.cta.url)}" class="btn-primary">${esc(s.cta.text)}</a>` : ""}
+    ${s.cta ? `<a href="${esc(ctaUrl)}" class="btn-primary">${esc(s.cta.text)}</a>` : ""}
   </div>`;
 
   return `<section class="block-about${di ? " block-about--di" : ""}">

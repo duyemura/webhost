@@ -1,5 +1,8 @@
 export type FieldInputType = "text" | "textarea" | "url" | "switch" | "cta" | "string-array" | "item-list" | "json";
 
+// Field keys that always contain arrays of objects (not strings), even when empty
+const ITEM_LIST_KEYS = new Set(["members", "items", "images", "reviews", "testimonials", "features", "programs"]);
+
 const TEXTAREA_KEYS = new Set(["body", "description", "html", "quote", "answer", "bio", "details", "subheadline", "headline"]);
 const TEXT_KEYS = new Set(["title", "name", "label", "period", "price", "value", "tag", "role", "author", "platform", "date", "icon"]);
 const MEDIA_URL_KEYS = new Set(["image_url", "photo_url", "background_video_url", "video_url", "logo_url", "thumbnail_url"]);
@@ -86,7 +89,8 @@ export function inferFieldType(key: string, value: unknown): FieldInputType {
   if (typeof value === "string") return "text";
   if (isCtaObject(value)) return "cta";
   if (Array.isArray(value)) {
-    if (value.length === 0 || typeof value[0] === "string") return "string-array";
+    if (value.length === 0) return ITEM_LIST_KEYS.has(key) ? "item-list" : "string-array";
+    if (typeof value[0] === "string") return "string-array";
     if (typeof value[0] === "object" && value[0] !== null) return "item-list";
   }
   return "json";

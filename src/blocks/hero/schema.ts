@@ -43,21 +43,21 @@ export const heroBlock: BlockDefinition = {
     },
   },
   copyGuidelines: `Headline:
-- Maximum 6 words. Shorter is always better.
-- Must fit 1–2 lines at desktop (1200px) and no more than 3 lines at mobile (375px).
-- Do not copy the brand's tagline verbatim — distill it shorter if needed.
-- Avoid stacked all-caps fragments ("AWESOME FOR EVERYONE. SHAME FREE." breaks badly on mobile).
-- Prefer a single punchy phrase over multiple sentence fragments.
-- Good: "Get seriously strong." / "Train like you mean it."
-- Bad: "AWESOME FOR EVERYONE. SHAME FREE. MIGHTY STRONG."
+- Target 4–8 words. Hard max: 10 words. Specificity beats brevity — a specific 7-word headline beats a vague 4-word one.
+- Lead with the outcome the customer WANTS, not what the business does.
+- NEVER copy the source site's tagline verbatim — rewrite it.
+- ONE idea only. No stacked fragments. "More than just a gym. A community that changes." = bad (two sentences, layout-breaking).
+- Good: "Earn it." / "Get seriously strong." / "Your first class is free." / "Stronger in 30 days or your money back."
+- Bad: "More Than Just a Gym." (cliché/vague) / "We Help You Achieve Your Goals" (generic) / stacked fragment sentences.
 
 Subheadline:
-- One sentence, maximum 15 words.
-- Must not wrap at 600px viewport width.
+- One sentence only, maximum 12 words.
+- Addresses the core promise or eliminates a key fear.
+- Good: "No experience needed — just show up." / "Real results for real people."
 
 CTAs:
-- Default to ONE cta_primary only. Omit cta_secondary unless the source site explicitly shows two CTAs.
-- Button text: verb + noun, 2–3 words. No ending punctuation.
-- Good: "Start free trial" / "Book a class"
+- One cta_primary only. Omit cta_secondary unless the source site explicitly shows two CTAs.
+- Button text: verb + noun, 2–3 words. No punctuation.
+- Good: "Start free trial" / "Book a class" / "Claim your spot"
 - Bad: "Click here to get started today!"`,
 };

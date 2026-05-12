@@ -39,9 +39,12 @@ const ICON_MAP: Record<string, string> = {
   support: "🤝", handshake: "🤝",
 };
 
-function resolveIcon(icon: string): string {
+const DEFAULT_ICON = "★";
+
+function resolveIcon(icon?: string): string {
+  if (!icon) return DEFAULT_ICON;
   if ([...icon].length <= 2 || /[^\x00-\x7F]/.test(icon)) return icon;
-  return ICON_MAP[icon.toLowerCase()] ?? "";
+  return ICON_MAP[icon.toLowerCase()] ?? DEFAULT_ICON;
 }
 
 export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
@@ -61,7 +64,7 @@ function renderDefault(section: Record<string, unknown>, profile: BusinessProfil
     </div>` : ""}
     <div class="grid-${cols}">
       ${s.items.map(item => `<div class="block-features__item">
-        ${item.icon && resolveIcon(item.icon) ? `<div class="block-features__icon">${esc(resolveIcon(item.icon))}</div>` : ""}
+        <div class="block-features__icon">${esc(resolveIcon(item.icon))}</div>
         <h3>${esc(interpolate(item.title, profile))}</h3>
         <p>${esc(interpolate(item.description, profile))}</p>
       </div>`).join("\n")}

@@ -218,7 +218,7 @@ function CreateSiteDialog({
       const detail = await getPlaceDetail(result.id);
       setSelectedPlace(detail);
     } catch {
-      setSelectedPlace({ ...result, city: null, state: null, zip: null, country: null, hours: null, reviews: [] });
+      setSelectedPlace({ ...result, city: null, state: null, zip: null, country: null, hours: null, reviews: [], lat: null, lng: null });
     } finally {
       setLoadingPlace(false);
     }

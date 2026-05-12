@@ -6,6 +6,7 @@ import { inferFieldType, isMediaUrlKey, sortFields } from "../../lib/editor";
 import type { SiteSection } from "../../api";
 import { uploadAsset } from "../../api";
 import { AssetPicker } from "./AssetPicker";
+import { BLOCK_CATALOG } from "../../lib/spec";
 
 const ACRONYMS = new Set(["url", "html", "api", "sms", "csv", "id"]);
 
@@ -27,6 +28,9 @@ interface BlockFormProps {
 }
 
 export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
+  const catalogEntry = BLOCK_CATALOG.find(b => b.type === section.type);
+  const itemTemplates = catalogEntry?.itemTemplates ?? {};
+
   const fieldKeys = sortFields(
     Object.keys(section).filter((k) => k !== "id" && k !== "type")
   );
@@ -131,7 +135,9 @@ export function BlockForm({ siteId, section, onChange }: BlockFormProps) {
 
             {inputType === "item-list" && (
               <ItemListField
+                fieldKey={key}
                 value={Array.isArray(value) ? (value as Record<string, string>[]) : []}
+                itemTemplate={itemTemplates[key]}
                 onChange={(v) => setField(key, v)}
               />
             )}
@@ -343,14 +349,40 @@ function StringArrayField({
   );
 }
 
+// First string-typed value in an item to use as a label (name > title > question > first key)
+const LABEL_KEY_PRIORITY = ["name", "title", "question", "author", "value", "label"];
+
+function itemLabel(item: Record<string, string>, index: number): string {
+  for (const k of LABEL_KEY_PRIORITY) {
+    if (item[k]) return String(item[k]);
+  }
+  const first = Object.values(item).find(v => typeof v === "string" && v.trim());
+  return first ? String(first) : `Item ${index + 1}`;
+}
+
 function ItemListField({
+  fieldKey,
   value,
+  itemTemplate,
   onChange,
 }: {
+  fieldKey: string;
   value: Record<string, string>[];
+  itemTemplate?: Record<string, string>;
   onChange: (v: Record<string, string>[]) => void;
 }) {
-  const keys = value.length > 0 ? Object.keys(value[0]) : [];
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const keys = value.length > 0
+    ? Object.keys(value[0])
+    : itemTemplate ? Object.keys(itemTemplate) : [];
+
+  function toggle(i: number) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  }
 
   function updateItem(i: number, field: string, text: string) {
     const next = value.map((item, idx) => idx === i ? { ...item, [field]: text } : item);
@@ -359,39 +391,75 @@ function ItemListField({
 
   function removeItem(i: number) {
     onChange(value.filter((_, idx) => idx !== i));
+    setExpanded(prev => {
+      const next = new Set<number>();
+      for (const n of prev) { if (n < i) next.add(n); else if (n > i) next.add(n - 1); }
+      return next;
+    });
   }
 
   function addItem() {
-    const blank = Object.fromEntries(keys.map((k) => [k, ""]));
+    const template = itemTemplate ?? (keys.length > 0 ? Object.fromEntries(keys.map(k => [k, ""])) : { [fieldKey]: "" });
+    const blank = Object.fromEntries(Object.entries(template).map(([k, v]) => [k, v]));
+    const newIndex = value.length;
     onChange([...value, blank]);
+    setExpanded(prev => new Set([...prev, newIndex]));
   }
 
   return (
     <div className="tw-space-y-2">
       {value.map((item, i) => (
-        <div key={i} className="tw-space-y-1 tw-pl-2 tw-border-l-2 tw-border-border">
-          <div className="tw-flex tw-items-center tw-justify-between">
-            <span className="tw-text-xs tw-text-muted-foreground">Item {i + 1}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => removeItem(i)}
-              className="tw-text-muted-foreground hover:tw-text-error"
-            >
-              <Trash2 className="tw-h-3.5 tw-w-3.5" />
-            </Button>
-          </div>
-          {keys.map((field) => (
-            <div key={field} className="tw-space-y-0.5">
-              <Label className="tw-text-xs tw-text-muted-foreground">{toFieldLabel(field)}</Label>
-              <Input
-                value={item[field] ?? ""}
-                onChange={(e) => updateItem(i, field, e.target.value)}
-                className="tw-text-sm"
-              />
+        <div key={i} className="tw-rounded tw-border tw-border-border tw-overflow-hidden">
+          <button
+            type="button"
+            className="tw-w-full tw-flex tw-items-center tw-justify-between tw-px-3 tw-py-2 tw-text-left hover:tw-bg-muted/40 tw-transition-colors"
+            onClick={() => toggle(i)}
+          >
+            <span className="tw-text-sm tw-font-medium tw-truncate tw-flex-1">{itemLabel(item, i)}</span>
+            <div className="tw-flex tw-items-center tw-gap-1 tw-ml-2">
+              <span className="tw-text-xs tw-text-muted-foreground">{expanded.has(i) ? "▲" : "▼"}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => { e.stopPropagation(); removeItem(i); }}
+                className="tw-text-muted-foreground hover:tw-text-error"
+              >
+                <Trash2 className="tw-h-3.5 tw-w-3.5" />
+              </Button>
             </div>
-          ))}
+          </button>
+          {expanded.has(i) && (
+            <div className="tw-space-y-2 tw-p-3 tw-border-t tw-border-border tw-bg-background">
+              {keys.map((field) => (
+                <div key={field} className="tw-space-y-0.5">
+                  <Label className="tw-text-xs tw-text-muted-foreground">{toFieldLabel(field)}</Label>
+                  {field.endsWith("_url") ? (
+                    <Input
+                      type="url"
+                      value={item[field] ?? ""}
+                      onChange={(e) => updateItem(i, field, e.target.value)}
+                      className="tw-text-sm"
+                      placeholder="https://…"
+                    />
+                  ) : (field === "bio" || field === "description" || field === "answer" || field === "quote") ? (
+                    <Textarea
+                      value={item[field] ?? ""}
+                      onChange={(e) => updateItem(i, field, e.target.value)}
+                      rows={3}
+                      className="tw-text-sm"
+                    />
+                  ) : (
+                    <Input
+                      value={item[field] ?? ""}
+                      onChange={(e) => updateItem(i, field, e.target.value)}
+                      className="tw-text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
       <Button
@@ -400,6 +468,7 @@ function ItemListField({
         size="sm"
         onClick={addItem}
         className="tw-w-full tw-gap-1"
+        disabled={keys.length === 0}
       >
         <Plus className="tw-h-3.5 tw-w-3.5" />
         Add item

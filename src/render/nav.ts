@@ -1,21 +1,22 @@
 import type { SiteSpec, Theme } from "../blocks/types.js";
 import { esc } from "./escape.js";
 
-// Pages that live in footer / sitemap only — never main nav
-const FOOTER_SLUG_RE = /privacy|terms|cancell|cookie|sitemap|legal|disclaimer|accessibility|refund|gdpr/i;
-const FOOTER_LABEL_RE = /^(privacy|terms|cancell|cookie|sitemap|legal|disclaimer|refund|blog)/i;
-// Operational/account pages that pollute the nav
-const OPERATIONAL_RE = /\b(pause|cancel|freeze|suspend|billing|account|login|register|sign.?up|member.?portal|waiver|liability|faq)\b/i;
-// Conversion/CTA pages — these should be the CTA button, not a nav link
-const CTA_SLUG_RE = /drop.?in|no.?sweat|intro|free.?trial|get.?started|join|start/i;
+// Pages that belong only in the footer/sitemap — never in the main nav
+const FOOTER_SLUG_RE = /privacy|terms|cancell?ation|cookie|sitemap|legal|disclaimer|accessibility|refund|gdpr/i;
+const FOOTER_LABEL_RE = /^(privacy|terms|cancell?|cookie|sitemap|legal|disclaimer|refund|blog)/i;
+
+// Operational/account pages — checked on both slug and label so nothing sneaks through
+const OPERATIONAL_SLUG_RE = /cancel|freeze|suspend|billing|account|login|register|portal|waiver|pause|liability/i;
+const OPERATIONAL_LABEL_RE = /\b(pause|cancel|freeze|suspend|billing|account|login|register|sign.?up|member.?portal|waiver|liability|faq)\b/i;
 
 const MAX_NAV_ITEMS = 4; // max top-level entries before the CTA button
 
 function isNavHidden(p: { slug: string; nav_label?: string; title?: string }): boolean {
   if (FOOTER_SLUG_RE.test(p.slug)) return true;
+  if (OPERATIONAL_SLUG_RE.test(p.slug)) return true;
   const label = (p.nav_label || p.title || "").trim();
   if (FOOTER_LABEL_RE.test(label)) return true;
-  if (OPERATIONAL_RE.test(label)) return true;
+  if (OPERATIONAL_LABEL_RE.test(label)) return true;
   return false;
 }
 
@@ -28,15 +29,13 @@ export function buildNav(
   siteCtaUrl: string | null = null,
   siteCtaLabel: string | null = null,
 ): string {
-  // Determine CTA — site-level config wins, then auto-detect from pages
-  const ctaPage = !siteCtaUrl
-    ? (spec.pages.find(p => CTA_SLUG_RE.test(p.slug))
-      ?? spec.pages.find(p => /^contact/.test(p.slug))
-      ?? spec.pages.find(p => p.slug !== "index" && !isNavHidden(p)))
-    : null;
-  // Derive the slug to exclude from nav links — works for both site-level URL and auto-detected page
-  const ctaUrlSlug = siteCtaUrl ? siteCtaUrl.replace(/^\//, "").split("?")[0] : null;
-  const ctaSlug = ctaUrlSlug ?? ctaPage?.slug ?? null;
+  // CTA destination: site-level config wins, then the canonical /get-started page
+  const ctaHref = siteCtaUrl ?? "/get-started";
+  const ctaSlug = ctaHref.replace(/^\//, "").split("?")[0];
+
+  // CTA label: site-level config wins, then the page's own nav_label, then fallback
+  const getStartedPage = spec.pages.find(p => p.slug === ctaSlug);
+  const ctaLabel = siteCtaLabel ?? getStartedPage?.nav_label ?? "Get started";
 
   const pages = spec.pages.filter(p =>
     p.slug !== "index" &&
@@ -117,9 +116,6 @@ export function buildNav(
   // Cap to MAX_NAV_ITEMS so the CTA button is never pushed off-screen
   const visibleItems = rendered.slice(0, MAX_NAV_ITEMS);
 
-  // CTA: always present — site-level config wins over auto-detected page
-  const ctaHref = siteCtaUrl ?? (ctaPage ? `/${ctaPage.slug}` : "/contact");
-  const ctaLabel = siteCtaLabel ?? ctaPage?.nav_label ?? "Get started";
   const ctaHtml = `<li class="site-nav__cta"><a href="${esc(ctaHref)}" class="site-nav__cta-btn">${esc(ctaLabel)}</a></li>`;
 
   // Clean up site name: strip SEO tails like "- Gym in Denver"

@@ -1,4 +1,4 @@
-import type { Theme } from "../types.js";
+import type { Theme, SiteCta } from "../types.js";
 import type { BusinessProfile } from "../../db/types.js";
 import { interpolate } from "../../render/interpolate.js";
 import { esc, safeUrl } from "../../render/escape.js";
@@ -17,15 +17,16 @@ interface HeroFields {
   stats_bar?: { value: string; label: string }[];
 }
 
-export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null): string {
-  if (theme.style_hint === "dark-industrial") return renderDI(section, profile);
-  return renderDefault(section, profile);
+export function render(section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null, siteCta?: SiteCta): string {
+  if (theme.style_hint === "dark-industrial") return renderDI(section, profile, siteCta);
+  return renderDefault(section, profile, siteCta);
 }
 
-function ctaHtml(s: HeroFields): string {
+function ctaHtml(s: HeroFields, siteCta?: SiteCta): string {
   if (!s.cta_primary && !s.cta_secondary) return "";
+  const primaryUrl = siteCta?.url ?? (s.cta_primary?.url ?? "");
   return `<div class="block-hero__actions">
-        ${s.cta_primary ? `<a href="${safeUrl(s.cta_primary.url)}" class="btn-primary">${esc(s.cta_primary.text)}</a>` : ""}
+        ${s.cta_primary ? `<a href="${safeUrl(primaryUrl)}" class="btn-primary">${esc(s.cta_primary.text)}</a>` : ""}
         ${s.cta_secondary ? `<a href="${safeUrl(s.cta_secondary.url)}" class="btn-secondary">${esc(s.cta_secondary.text)}</a>` : ""}
       </div>`;
 }
@@ -48,7 +49,7 @@ function mediaLayers(videoUrl: string | undefined, imageUrl: string | undefined)
   return "";
 }
 
-function renderDefault(section: Record<string, unknown>, profile: BusinessProfile | null): string {
+function renderDefault(section: Record<string, unknown>, profile: BusinessProfile | null, siteCta?: SiteCta): string {
   const s = section as unknown as HeroFields;
   const bg = s.background;
   const videoUrl = s.background_video_url || undefined;
@@ -69,7 +70,7 @@ function renderDefault(section: Record<string, unknown>, profile: BusinessProfil
   const content = `<div class="block-hero__content">
       <h1>${esc(interpolate(s.headline, profile))}</h1>
       ${s.subheadline ? `<p class="block-hero__sub">${esc(interpolate(s.subheadline, profile))}</p>` : ""}
-      ${ctaHtml(s)}
+      ${ctaHtml(s, siteCta)}
     </div>`;
 
   return `<section class="${cls}"${inlineStyle}>
@@ -80,7 +81,7 @@ function renderDefault(section: Record<string, unknown>, profile: BusinessProfil
 </section>`;
 }
 
-function renderDI(section: Record<string, unknown>, profile: BusinessProfile | null): string {
+function renderDI(section: Record<string, unknown>, profile: BusinessProfile | null, siteCta?: SiteCta): string {
   const s = section as unknown as HeroFields;
   const bg = s.background;
   const videoUrl = s.background_video_url || undefined;
@@ -103,7 +104,7 @@ function renderDI(section: Record<string, unknown>, profile: BusinessProfile | n
   const content = `<div class="block-hero__content">
       ${eyebrowEl}<h1>${headlineHtml}</h1>
       ${s.subheadline ? `<p class="block-hero__sub">${esc(interpolate(s.subheadline, profile))}</p>` : ""}
-      ${ctaHtml(s)}${statsEl}
+      ${ctaHtml(s, siteCta)}${statsEl}
     </div>`;
 
   return `<section class="${cls}">

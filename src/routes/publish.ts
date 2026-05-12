@@ -37,7 +37,10 @@ export const publishRoutes: FastifyPluginAsync = async (app) => {
         .execute(),
     ]);
 
-    await deletePrefix(`live/${id}/`);
+    // Keyed by slug so the Cloudflare Worker can serve directly from R2
+    // without a DB lookup: hostname = {slug}.onboardagent.com → live/{slug}/
+    const siteSlug = site.slug;
+    await deletePrefix(`live/${siteSlug}/`);
 
     await Promise.all(
       spec.pages.map(async (page) => {
@@ -46,8 +49,8 @@ export const publishRoutes: FastifyPluginAsync = async (app) => {
         if (!html) return;
         const key =
           page.slug === "index"
-            ? `live/${id}/index.html`
-            : `live/${id}/${page.slug}/index.html`;
+            ? `live/${siteSlug}/index.html`
+            : `live/${siteSlug}/${page.slug}/index.html`;
         await putFile(key, Buffer.from(html, "utf-8"), "text/html; charset=utf-8");
       })
     );
@@ -73,14 +76,15 @@ export const publishRoutes: FastifyPluginAsync = async (app) => {
 
     const site = await db
       .selectFrom("sites")
-      .select("id")
+      .select(["id", "slug"])
       .where("id", "=", id)
       .where("user_id", "=", req.user.sub)
       .executeTakeFirst();
 
     if (!site) return reply.notFound();
 
-    await deletePrefix(`live/${id}/`);
+    const siteSlug = site.slug;
+    await deletePrefix(`live/${siteSlug}/`);
 
     const updated = await db
       .updateTable("sites")

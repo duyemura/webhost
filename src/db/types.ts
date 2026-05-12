@@ -86,6 +86,9 @@ export interface BusinessProfilesTable {
   gmb_rating: number | null;
   gmb_review_count: number | null;
   gmb_reviews: unknown | null;
+  gmb_place_id: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

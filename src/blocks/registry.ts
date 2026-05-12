@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BlockDefinition, SiteSection, Theme } from "./types.js";
+import type { BlockDefinition, SiteSection, SiteCta, Theme } from "./types.js";
 import type { BusinessProfile } from "../db/types.js";
 
 export class BlockRegistry {
@@ -9,11 +9,11 @@ export class BlockRegistry {
     this.blocks.set(block.type, block);
   }
 
-  render(section: SiteSection, theme: Theme, profile: BusinessProfile | null): string {
+  render(section: SiteSection, theme: Theme, profile: BusinessProfile | null, siteCta?: SiteCta): string {
     const block = this.blocks.get(section.type);
     if (!block) return "";
     try {
-      return block.render(section as Record<string, unknown>, theme, profile);
+      return block.render(section as Record<string, unknown>, theme, profile, siteCta);
     } catch (err) {
       console.error(`Block render error [${section.type}]:`, err);
       return "";

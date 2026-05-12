@@ -47,9 +47,11 @@ export async function renderSpecPage(
   const socialProofBar = buildSocialProofBar(profile);
   let socialProofInjected = false;
 
+  const siteCta = { url: site.cta_url ?? "/get-started", label: site.cta_label ?? "Get started" };
+
   const sectionsHtml = interpolate(page.sections
     .map(s => {
-      const html = registry.render(s, theme, profile);
+      const html = registry.render(s, theme, profile, siteCta);
       const bg = (s as Record<string, unknown>).bg as string | undefined;
       let wrapped = !bg || bg === "default" ? html : `<div class="section-bg--${bg}">${html}</div>`;
       if (debug) {

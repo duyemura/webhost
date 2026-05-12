@@ -1,0 +1,16 @@
+name = "webhost-sites"
+main = "index.ts"
+compatibility_date = "2024-01-01"
+account_id = "f205a9e41cb389ec4f222a1732d442e1"
+
+routes = [
+  { pattern = "*.onboardagent.com/*", zone_name = "onboardagent.com" },
+  { pattern = "*.onboardagent.com", zone_name = "onboardagent.com" },
+]
+
+[vars]
+PLATFORM_DOMAIN = "onboardagent.com"
+
+[[r2_buckets]]
+binding = "SITES"
+bucket_name = "webhost-sites"

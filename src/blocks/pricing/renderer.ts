@@ -1,4 +1,4 @@
-import type { Theme } from "../types.js";
+import type { Theme, SiteCta } from "../types.js";
 import type { BusinessProfile } from "../../db/types.js";
 import { esc } from "../../render/escape.js";
 
@@ -19,7 +19,7 @@ interface PricingFields {
   items: PricingItem[];
 }
 
-export function render(section: Record<string, unknown>, theme: Theme, _profile: unknown): string {
+export function render(section: Record<string, unknown>, theme: Theme, _profile: unknown, siteCta?: SiteCta): string {
   const s = section as unknown as PricingFields;
   const di = theme.style_hint === "dark-industrial";
 
@@ -39,7 +39,7 @@ export function render(section: Record<string, unknown>, theme: Theme, _profile:
         <ul class="block-pricing__features">
           ${item.features.map(f => `<li>${esc(f)}</li>`).join("\n")}
         </ul>
-        <a href="${esc(item.cta.url)}" class="btn-primary">${esc(item.cta.text)}</a>
+        <a href="${esc(siteCta?.url ?? item.cta.url)}" class="btn-primary">${esc(item.cta.text)}</a>
       </div>`).join("\n")}
     </div>
   </div>

@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Wand2,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import {
   Button,
@@ -43,6 +44,10 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
 } from "@pushpress/pushpress-ui";
 import { useSetHeader } from "../components/AppLayout";
 import {
@@ -76,8 +81,9 @@ import {
   DEFAULT_THEME,
   updateSpec,
   updateTheme,
-  rebuildPage,
+  rebuildPageStream,
   aiEditPage,
+  recoverBuild,
 } from "../api";
 import { BlockEditor } from "../components/editor/BlockEditor";
 import { LivePreview } from "../components/editor/LivePreview";
@@ -246,11 +252,92 @@ function CustomDomainSection({
   );
 }
 
-function CtaSection({ siteId, ctaUrl, ctaLabel }: { siteId: string; ctaUrl: string | null; ctaLabel: string | null }) {
+interface PageOption { slug: string; title: string; nav_label?: string }
+
+function PageLinkInput({
+  id,
+  value,
+  onChange,
+  pages,
+  placeholder,
+}: {
+  id?: string;
+  value: string;
+  onChange: (v: string) => void;
+  pages: PageOption[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [atPos, setAtPos] = useState<number | null>(null);
+  const [filter, setFilter] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    const cursor = e.target.selectionStart ?? v.length;
+    const lastAt = v.lastIndexOf("@", cursor - 1);
+    if (lastAt !== -1 && !v.slice(lastAt + 1, cursor).includes(" ")) {
+      setAtPos(lastAt);
+      setFilter(v.slice(lastAt + 1, cursor));
+      setOpen(true);
+    } else {
+      setOpen(false);
+      setAtPos(null);
+    }
+    onChange(v);
+  };
+
+  const selectPage = (slug: string) => {
+    if (atPos === null) return;
+    const cursor = inputRef.current?.selectionStart ?? value.length;
+    const before = value.slice(0, atPos);
+    const after = value.slice(cursor);
+    onChange(before + `/${slug}` + after);
+    setOpen(false);
+    setAtPos(null);
+  };
+
+  const filtered = pages.filter(p => {
+    const label = (p.nav_label || p.title || p.slug).toLowerCase();
+    const q = filter.toLowerCase();
+    return label.includes(q) || p.slug.includes(q);
+  });
+
+  return (
+    <div className="tw-relative">
+      <Input
+        ref={inputRef}
+        id={id}
+        value={value}
+        onChange={handleChange}
+        placeholder={placeholder}
+        onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Escape") setOpen(false); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && filtered.length > 0 && (
+        <div className="tw-absolute tw-z-50 tw-left-0 tw-right-0 tw-top-full tw-mt-1 tw-bg-popover tw-border tw-border-border tw-rounded-md tw-shadow-lg tw-max-h-48 tw-overflow-y-auto">
+          {filtered.map(p => (
+            <button
+              key={p.slug}
+              type="button"
+              className="tw-w-full tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2 tw-text-sm tw-text-left hover:tw-bg-accent tw-transition-colors"
+              onMouseDown={(e: React.MouseEvent) => { e.preventDefault(); selectPage(p.slug); }}
+            >
+              <span className="tw-font-medium">{p.nav_label || p.title}</span>
+              <span className="tw-text-xs tw-text-muted-foreground">/{p.slug}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CtaSection({ siteId, ctaUrl, ctaLabel, pages }: { siteId: string; ctaUrl: string | null; ctaLabel: string | null; pages: PageOption[] }) {
   const queryClient = useQueryClient();
-  const [url, setUrl] = useState(ctaUrl ?? "");
-  const [label, setLabel] = useState(ctaLabel ?? "");
-  const dirty = url !== (ctaUrl ?? "") || label !== (ctaLabel ?? "");
+  const [url, setUrl] = useState(ctaUrl ?? "/get-started");
+  const [label, setLabel] = useState(ctaLabel ?? "Get started");
+  const dirty = url !== (ctaUrl ?? "/get-started") || label !== (ctaLabel ?? "Get started");
 
   const mutation = useMutation({
     mutationFn: () => updateSite(siteId, { cta_url: url.trim() || null, cta_label: label.trim() || null }),
@@ -262,7 +349,7 @@ function CtaSection({ siteId, ctaUrl, ctaLabel }: { siteId: string; ctaUrl: stri
       <div>
         <h2 className="tw-text-base tw-font-semibold">Nav CTA button</h2>
         <p className="tw-text-sm tw-text-muted-foreground tw-mt-0.5">
-          The prominent button in the top-right of every page. Use an internal path like <code className="tw-text-xs tw-bg-muted tw-px-1 tw-py-0.5 tw-rounded">/drop-in</code> or an external URL like a booking link.
+          The prominent button in the top-right of every page. Type <code className="tw-text-xs tw-bg-muted tw-px-1 tw-py-0.5 tw-rounded">@</code> to pick a page, or paste an external URL like a booking link.
         </p>
       </div>
       <div className="tw-grid tw-grid-cols-2 tw-gap-3">
@@ -277,11 +364,12 @@ function CtaSection({ siteId, ctaUrl, ctaLabel }: { siteId: string; ctaUrl: stri
         </div>
         <div>
           <Label htmlFor="cta-url" className="tw-text-sm tw-font-medium tw-mb-1.5 tw-block">Destination URL</Label>
-          <Input
+          <PageLinkInput
             id="cta-url"
-            placeholder="/drop-in or https://…"
+            placeholder="/get-started or https://…"
             value={url}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+            onChange={setUrl}
+            pages={pages}
           />
         </div>
       </div>
@@ -819,6 +907,7 @@ function PageAccordionItem({
   const [isChatPending, setIsChatPending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
+  const [rebuildStatus, setRebuildStatus] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const displayName = page.nav_label || page.title;
@@ -829,16 +918,18 @@ function PageAccordionItem({
 
   async function handleRebuild() {
     setIsRebuilding(true);
+    setRebuildStatus(null);
     onBusyChange(true);
     onRebuildStart(page.slug);
     try {
-      const updated = await rebuildPage(siteId, page.slug);
+      const updated = await rebuildPageStream(siteId, page.slug, setRebuildStatus);
       onSiteUpdated(updated);
       onRebuildEnd(page.slug, null);
     } catch (err) {
       onRebuildEnd(page.slug, (err as Error).message);
     } finally {
       setIsRebuilding(false);
+      setRebuildStatus(null);
       onBusyChange(false);
     }
   }
@@ -905,7 +996,8 @@ function PageAccordionItem({
           </div>
 
           {/* Action row */}
-          <div className="tw-flex tw-gap-2 tw-px-4 tw-pb-3 tw-border-t tw-border-border tw-pt-3">
+          <div className="tw-px-4 tw-pb-3 tw-border-t tw-border-border tw-pt-3 tw-space-y-2">
+            <div className="tw-flex tw-gap-2">
             {canRebuild && (
               <Button
                 variant="outline"
@@ -929,6 +1021,13 @@ function PageAccordionItem({
               <Wand2 className="tw-h-3 tw-w-3" />
               {chatOpen ? "Hide AI chat" : "Edit with AI"}
             </Button>
+            </div>
+            {isRebuilding && rebuildStatus && (
+              <p className="tw-text-xs tw-text-muted-foreground tw-flex tw-items-center tw-gap-1.5">
+                <Loader2 className="tw-h-3 tw-w-3 tw-animate-spin tw-shrink-0" />
+                {rebuildStatus}
+              </p>
+            )}
           </div>
 
           {/* Inline AI chat */}
@@ -1253,6 +1352,7 @@ function BuildProgressPanel({ progress, error }: { progress: BuildProgress | nul
               {page.status === "done" && <CheckCircle2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-success" />}
               {page.status === "active" && <Loader2 className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-animate-spin tw-text-primary" />}
               {page.status === "pending" && <div className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-rounded-full tw-border tw-border-border" />}
+              {page.status === "error" && <X className="tw-h-3.5 tw-w-3.5 tw-shrink-0 tw-text-error" />}
               <div className="tw-min-w-0 tw-flex-1">
                 <p className={`tw-text-xs tw-font-medium tw-truncate ${page.status === "pending" ? "tw-text-muted-foreground" : "tw-text-foreground"}`}>
                   {page.label}
@@ -1645,6 +1745,26 @@ export function SiteDetail() {
     enabled: !!id,
   });
 
+  const recoverMutation = useMutation({
+    mutationFn: () => recoverBuild(id!),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["sites", id], data);
+      refreshPreview();
+    },
+  });
+
+  // Auto-recover stale builds: if build_status is "building" but started_at is
+  // more than 10 minutes ago with no activity, the SSE connection was orphaned.
+  useEffect(() => {
+    if (!site || site.build_status !== "building" || recoverMutation.isPending) return;
+    const startedAt = site.build_progress?.started_at;
+    if (!startedAt) return;
+    const ageMs = Date.now() - new Date(startedAt).getTime();
+    if (ageMs > 10 * 60 * 1000) {
+      recoverMutation.mutate();
+    }
+  }, [site?.build_status, site?.build_progress?.started_at]);
+
   function refreshPreview() {
     setPreviewKey((k) => k + 1);
   }
@@ -1683,6 +1803,8 @@ export function SiteDetail() {
   const isPublished = !!site?.published_at;
   const scripts: SiteScript[] = scriptsData?.scripts ?? [];
   const previewUrl = site ? `http://${site.slug}.localhost:3000` : "";
+  const liveUrl = site ? (site.custom_domain ? `https://${site.custom_domain}` : `https://${site.slug}.onboardagent.com`) : "";
+  const isPublishing = publishMutation.isPending;
 
   const hasUnpublishedChanges =
     isPublished &&
@@ -1713,16 +1835,63 @@ export function SiteDetail() {
             </Button>
           )}
           {isPublished && (
-            hasUnpublishedChanges ? (
-              <Button
-                size="sm"
-                isSubmitting={publishMutation.isPending}
-                onClick={() => publishMutation.mutate()}
-              >
-                {site.live_published_at ? "Publish changes" : "Publish to live"}
-              </Button>
+            isPublishing ? (
+              <div className="tw-flex tw-items-center tw-gap-1.5 tw-text-sm tw-text-muted-foreground">
+                <Loader2 className="tw-h-3.5 tw-w-3.5 tw-animate-spin" />
+                Publishing…
+              </div>
+            ) : hasUnpublishedChanges ? (
+              <div className="tw-flex tw-items-center">
+                <Button
+                  size="sm"
+                  onClick={() => publishMutation.mutate()}
+                  className="tw-rounded-r-none tw-border-r-0"
+                >
+                  {site.live_published_at ? "Publish changes" : "Publish to live"}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="default" className="tw-rounded-l-none tw-px-2 tw-border-l tw-border-white/20">
+                      <ChevronDown className="tw-h-3.5 tw-w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => publishMutation.mutate()}>
+                      Publish changes
+                    </DropdownMenuItem>
+                    {site.live_published_at && (
+                      <DropdownMenuItem asChild>
+                        <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="tw-flex tw-items-center tw-gap-2">
+                          <ExternalLink className="tw-h-3.5 tw-w-3.5" />
+                          View live site
+                        </a>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ) : (
-              <Badge variant="success">Live</Badge>
+              <div className="tw-flex tw-items-center tw-gap-1.5">
+                <Badge variant="success">Live</Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="tw-px-2 tw-h-7">
+                      <ChevronDown className="tw-h-3.5 tw-w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => publishMutation.mutate()}>
+                      Re-publish
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="tw-flex tw-items-center tw-gap-2">
+                        <ExternalLink className="tw-h-3.5 tw-w-3.5" />
+                        View live site
+                      </a>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )
           )}
         </div>
@@ -1751,9 +1920,15 @@ export function SiteDetail() {
           {/* Persistent build progress — visible regardless of active tab */}
           {site.build_status === "building" && (
             <div className="tw-mt-6 tw-mb-0">
-              <p className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-mb-2 tw-uppercase tw-tracking-wide">Building site…</p>
+              <p className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-mb-2 tw-uppercase tw-tracking-wide">
+                {recoverMutation.isPending ? "Recovering stuck pages…" : "Building site…"}
+              </p>
               <BuildProgressPanel progress={site.build_progress} error={null} />
-              <p className="tw-text-xs tw-text-muted-foreground tw-mt-2">You can navigate away — this will update automatically when done.</p>
+              <p className="tw-text-xs tw-text-muted-foreground tw-mt-2">
+                {recoverMutation.isPending
+                  ? "Rebuilding pages that got stuck. This may take a minute."
+                  : "You can navigate away — this will update automatically when done."}
+              </p>
             </div>
           )}
           {site.build_status === "error" && site.build_error && (
@@ -1786,7 +1961,7 @@ export function SiteDetail() {
             <TabsContent value="overview" className="tw-space-y-6">
               <BusinessInfoSection siteId={id!} onSaved={refreshPreview} />
 
-              <CtaSection siteId={id!} ctaUrl={site.cta_url} ctaLabel={site.cta_label} />
+              <CtaSection siteId={id!} ctaUrl={site.cta_url} ctaLabel={site.cta_label} pages={(site.spec as SiteSpec | null)?.pages ?? []} />
 
               <div className="tw-rounded-lg tw-border tw-border-error/30 tw-p-4">
                 <h2 className="tw-text-base tw-font-semibold tw-text-error tw-mb-1">

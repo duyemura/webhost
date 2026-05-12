@@ -25,10 +25,17 @@ export interface ScrapedPage {
   _html?: string;  // raw HTML preserved on home page only, for brand extraction
 }
 
+export interface NavLink {
+  url: string;
+  label: string;
+  slug: string;
+}
+
 export interface ScrapeResult {
   site_name: string;
   base_url: string;
   pages: [ScrapedPage, ...ScrapedPage[]];
+  nav_links: NavLink[];  // original nav order with labels, for AI to preserve
 }
 
 export type ScrapeEvent =
@@ -106,6 +113,12 @@ async function extractCssImages(html: string, baseUrl: string): Promise<string[]
       if (!found.includes(abs)) found.push(abs);
     } catch { /* skip invalid URL */ }
   }
+
+  // og:image — strong signal for the page's primary hero/feature image
+  $("meta[property='og:image'], meta[name='og:image']").each((_, el) => {
+    const content = $(el).attr("content");
+    if (content) addUrl(content);
+  });
 
   // `<link rel="preload" as="image">` — explicitly flagged critical images
   $("link[rel='preload'][as='image']").each((_, el) => {
@@ -203,18 +216,36 @@ function extractSections(html: string, baseUrl?: string): ScrapedSection[] {
       } catch { /* skip invalid URL */ }
     });
 
-    const styleEls = [$el, ...$el.children().toArray().slice(0, 3).map(c => $el.find(c))];
-    for (const styleEl of styleEls) {
-      const style = typeof styleEl.attr === "function" ? (styleEl.attr("style") ?? "") : "";
-      const match = style.match(/background(?:-image)?\s*:[^;]*url\(\s*['"]?([^'")\s]+)['"]?\s*\)/i);
-      if (match?.[1] && isContentImage(match[1])) {
-        try {
-          const abs = baseUrl ? new URL(match[1], baseUrl).href : match[1];
-          if (!seenSrcs.has(abs)) {
-            seenSrcs.add(abs);
-            images.push({ src: abs, alt: "" });
-          }
-        } catch { /* skip invalid URL */ }
+    // Check ALL descendant elements with inline background styles (not just 3 levels)
+    const bgCandidates: string[] = [];
+    const addBgUrl = (raw: string) => {
+      const clean = raw.trim().replace(/^['"]|['"]$/g, "");
+      if (!clean || !isContentImage(clean)) return;
+      try {
+        const abs = baseUrl ? new URL(clean, baseUrl).href : clean;
+        if (!seenSrcs.has(abs)) bgCandidates.push(abs);
+      } catch { /* skip invalid URL */ }
+    };
+
+    // Inline style="background..." or style="background-image:..."
+    $el.find("*[style]").addBack("[style]").each((_, el) => {
+      const style = $(el).attr("style") ?? "";
+      const match = style.match(/background(?:-image)?\s*:[^;]*url\(\s*(['"]?)([^'")\s]+)\1\s*\)/i);
+      if (match?.[2]) addBgUrl(match[2]);
+    });
+
+    // data-bg, data-background, data-background-image, data-parallax attributes
+    for (const attr of ["data-bg", "data-background", "data-background-image", "data-parallax", "data-src"]) {
+      $el.find(`*[${attr}]`).addBack(`[${attr}]`).each((_, el) => {
+        const val = $(el).attr(attr) ?? "";
+        if (val && isContentImage(val)) addBgUrl(val);
+      });
+    }
+
+    for (const abs of bgCandidates) {
+      if (!seenSrcs.has(abs)) {
+        seenSrcs.add(abs);
+        images.push({ src: abs, alt: "" });
       }
     }
 
@@ -237,9 +268,10 @@ function extractSections(html: string, baseUrl?: string): ScrapedSection[] {
   return sections;
 }
 
-function extractNavLinks(html: string, baseUrl: URL): string[] {
+function extractNavLinks(html: string, baseUrl: URL): NavLink[] {
   const $ = load(html);
-  const links: string[] = [];
+  const seen = new Set<string>();
+  const links: NavLink[] = [];
 
   $("nav a, header a").each((_, el) => {
     const href = $(el).attr("href");
@@ -251,11 +283,15 @@ function extractNavLinks(html: string, baseUrl: URL): string[] {
       if (url.pathname === baseUrl.pathname && url.hash) return;
       url.hash = "";
       if (url.pathname !== "/" && url.pathname.endsWith("/")) url.pathname = url.pathname.slice(0, -1);
-      links.push(url.href);
+      if (seen.has(url.href)) return;
+      seen.add(url.href);
+      const label = $(el).text().replace(/\s+/g, " ").trim();
+      const slug = slugFromPath(url.pathname);
+      links.push({ url: url.href, label, slug });
     } catch { /* ignore invalid hrefs */ }
   });
 
-  return [...new Set(links)];
+  return links;
 }
 
 async function fetchPage(url: string): Promise<string | null> {
@@ -273,6 +309,26 @@ async function fetchPage(url: string): Promise<string | null> {
     console.warn({ err, url }, "fetchPage failed");
     return null;
   }
+}
+
+/** Re-scrape a single page URL and return the updated ScrapedPage.
+ *  Used by page rebuild to bypass the cache for a specific page without
+ *  re-crawling the entire site. Returns null if the page cannot be fetched. */
+export async function scrapeSinglePage(pageUrl: string): Promise<ScrapedPage | null> {
+  const html = await fetchPage(pageUrl);
+  if (!html) return null;
+  const $ = load(html);
+  const title = $("title").first().text().trim();
+  const sections = extractSections(html, pageUrl);
+  const cssImages = await extractCssImages(html, pageUrl);
+  const u = new URL(pageUrl);
+  return {
+    url: pageUrl,
+    slug: slugFromPath(u.pathname),
+    title,
+    sections,
+    page_images: cssImages,
+  };
 }
 
 export async function scrapeWebsite(
@@ -311,10 +367,11 @@ export async function scrapeWebsite(
 
   // Discover nav links — skip blog/news/post feeds (individual posts can't be rebuilt as static blocks)
   const SKIP_PATH_RE = /\/(blog|news|articles?|posts?|press|updates?)(\/|$)/i;
-  const navLinks = extractNavLinks(homeHtml, baseUrl);
-  const toVisit = navLinks
+  const allNavLinks = extractNavLinks(homeHtml, baseUrl);
+  const nav_links = allNavLinks.filter(l => !SKIP_PATH_RE.test(new URL(l.url).pathname));
+  const toVisit = nav_links
+    .map(l => l.url)
     .filter(l => l !== baseUrl.href && l !== baseUrl.href + "/")
-    .filter(l => !SKIP_PATH_RE.test(new URL(l).pathname))
     .slice(0, 20);
 
   if (toVisit.length > 0) {
@@ -338,5 +395,5 @@ export async function scrapeWebsite(
     onEvent({ type: "page_done", url: link, title, sections: sections.length });
   }
 
-  return { site_name, base_url: baseUrl.href, pages };
+  return { site_name, base_url: baseUrl.href, pages, nav_links };
 }

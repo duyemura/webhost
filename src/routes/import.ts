@@ -7,7 +7,7 @@ import { registry } from "../blocks/index.js";
 import { THEME_PRESETS } from "../render/theme-presets.js";
 import { DEFAULT_THEME } from "../blocks/types.js";
 import { scrapeWebsite } from "../lib/scrape.js";
-import type { ScrapeResult, ScrapedPage } from "../lib/scrape.js";
+import type { ScrapeResult, ScrapedPage, NavLink } from "../lib/scrape.js";
 import { extractBrandSignals, extractBrandKit, applyBrandKitToTheme, downloadSiteImage } from "../lib/brand.js";
 import type { NewBusinessProfile, BusinessProfileUpdate } from "../db/types.js";
 import { logAiCall, logCostEvent } from "../lib/ai-logger.js";
@@ -31,7 +31,40 @@ const gmbProfileSchema = z.object({
     rating: z.number(),
     text: z.string(),
   })).nullable().optional(),
+  gmb_place_id: z.string().max(300).nullable().optional(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 });
+
+// Pages that should never be built as content pages — not just hidden from nav
+const SKIP_BUILD_SLUG_RE = /\brequest\b|cancel|pause|freeze|suspend|billing|login|register|portal|waiver|liability/i;
+
+/**
+ * Remove operational pages and SEO-duplicate slug variants from the crawl list.
+ * Keeps the home page (index 0) always, then deduplicates longer slug variants
+ * that are just keyword-stuffed versions of shorter already-accepted pages.
+ * Example: "about-babylon-crossfit-in-babylon-ny" is dropped when "about" exists.
+ */
+function filterBuildPages(pages: readonly ScrapedPage[]): ScrapedPage[] {
+  const [home, ...rest] = pages;
+
+  // First pass: determine accepted slugs using length-sorted order so shorter
+  // (canonical) slugs beat longer SEO-variant duplicates in dedup checks.
+  const byLength = [...rest].sort((a, b) => a.slug.length - b.slug.length);
+  const acceptedSlugs: string[] = [];
+  for (const page of byLength) {
+    const slug = page.slug;
+    if (SKIP_BUILD_SLUG_RE.test(slug)) continue;
+    const isDuplicate = acceptedSlugs.some(acc =>
+      slug.startsWith(acc + "-") || slug.startsWith(acc + "/")
+    );
+    if (!isDuplicate) acceptedSlugs.push(slug);
+  }
+
+  // Second pass: return pages in original nav order, filtered to accepted slugs.
+  const acceptedSet = new Set(acceptedSlugs);
+  return [home, ...rest.filter(p => acceptedSet.has(p.slug))];
+}
 
 const bodySchema = z.object({
   url: z.string().url("Must be a valid URL"),
@@ -51,9 +84,9 @@ Guidelines:
 - Write a short meta_description (max 160 chars) that describes the page.
 - In _gaps, list any content patterns you saw but couldn't represent well (e.g. "Interactive class schedule widget"). Leave empty if all sections mapped cleanly.
 - Nav exclusions: Privacy Policy, Terms of Use, Terms & Conditions, Cancellation Policy, Cookie Policy, Sitemap, any legal/policy pages, AND any operational/account pages (Pause Membership, Freeze Account, Member Portal, Login, Register, Waiver, FAQ) must NOT appear in nav. Generate them as pages but they will be linked from the footer only. Blog pages must also be excluded (no CMS exists).
+- Nav order: if "Original nav menu order" is provided in the user message, assign nav_label exactly matching the original label for that page, and use the same relative ordering. Use the original nav labels verbatim (e.g. if the original says "About Us", use "About Us" not "About"). The only reordering allowed is grouping 2+ program/service pages under a Programs dropdown.
 - Nav budget: AT MOST 4 top-level nav entries (standalone links + dropdown groups combined). The 5th slot is always the CTA button. A nav with 3 entries + CTA is ideal. Never create more than 2 dropdown groups.
-- CTA page: if the site has a "drop-in", "no sweat intro", "free trial", "get started", or "join" page, that page is ALWAYS the nav CTA — give it nav_label like "Drop in", "Free intro", or "Get started". Do NOT include it as a regular nav link; it will be rendered as the prominent button. If no such page exists, the contact page serves as CTA.
-- Drop-in / intro pages: ALWAYS give these a standalone page with a dedicated slug (e.g. "drop-in", "free-intro", "no-sweat-intro"). Never bury them inside a Programs dropdown.
+- Drop-in / intro pages: these are SERVICES, not CTAs. If the gym offers drop-ins or a no-sweat intro, give them their own standalone page so people can learn about them — render them as regular nav links. The CTA button is handled separately by the system.
 - Programs dropdown: ONLY use nav_group "Programs" for pages that represent a specific workout type, class format, or service (e.g. CrossFit, Olympic Lifting, Kids, Open Gym). Never put Schedule, Coaches, About, Pricing, or Contact inside Programs.
 - Dropdowns require 2+ children: never assign nav_group to a page if it would be the only page in that group — use a standalone link instead.
 - Contact pages: always generate a simple contact-form block (type: "contact-form") with fields for name, email, phone (optional), and message. Do not attempt to replicate embedded third-party form widgets.
@@ -64,7 +97,19 @@ Guidelines:
   3. Programs/Team/About: assign downloaded images to items using alt text or section hint for matching. Distribute images across items when multiple exist.
   4. NEVER invent image URLs. Only use URLs from the Downloaded images list, or leave the field empty.
   5. A section marked [source: css background] is typically a hero or banner — use its URL in the hero background field.
-- Marquee blocks: items must be short punchy quote snippets extracted from real customer reviews — just the memorable phrase, no stars, no attribution, no quotation marks. E.g. "Came in nervous, left obsessed" or "Best decision I ever made". Pull from the Top reviews in the business facts section. Never use program/service names as marquee items.`;
+- Marquee blocks: items must be short punchy quote snippets extracted from real customer reviews — just the memorable phrase, no stars, no attribution, no quotation marks. E.g. "Came in nervous, left obsessed" or "Best decision I ever made". Pull from the Top reviews in the business facts section. Never use program/service names as marquee items.
+- Icons: every item in a features block MUST have an icon field. Choose from this list based on meaning: star, award, trophy, check, bolt, heart, muscle, fire, clock, users, dumbbell, target, shield, running, yoga, boxing, calendar, phone, email, chart, lock, support. Never leave icon empty.
+- Placeholder content: if a team/coaches section has no scraped member names, generate 3–4 plausible placeholder coaches with realistic first+last names (not "Coach Name"), fitness-appropriate roles, and a 1–2 sentence bio. Leave photo_url empty. Same principle for programs — if no real programs found, generate 2–3 plausible ones matching the business type with real-sounding names. This is so the owner has something to edit rather than a blank block.
+- Photo assignment — strict context matching: ONLY assign a downloaded image to a block when there is a clear contextual match between the image's alt text/section hint and the block content. Specific rules: (1) A food/nutrition image must NOT go in a hero, about, team, or general features block. (2) A team/coach photo must NOT go in a hero background or gallery. (3) A facility/interior photo should not go in a nutrition or program-specific block. (4) A CSS-background image from the homepage hero section should only be used as a hero background on that page. When there is any doubt, leave the image field empty — a blank field is better than a contextually wrong photo.
+- Hero headline rules — THIS IS CRITICAL:
+  1. Target 4–8 words. Shorter is often better but specificity beats brevity — a specific 7-word headline always beats a vague 4-word one. HARD MAXIMUM: 10 words.
+  2. NEVER copy the original site's tagline or headline verbatim — source sites almost always have bloated, generic copy. Rewrite it.
+  3. NEVER write multi-fragment stacked headlines ("MORE THAN JUST A GYM. A COMMUNITY THAT CHANGES." = terrible — two sentences, 11 words, breaks the layout). ONE idea only.
+  4. Lead with the outcome the customer WANTS, not what the business does. "Get seriously strong." not "We offer CrossFit classes."
+  5. Specificity converts: "Lose 15 lbs before summer." beats "Transform your body." every time.
+  6. The subheadline (1 sentence, ≤12 words) handles detail and nuance — the headline only needs to create desire and stop the scroll.
+  7. Good fitness hero headlines: "Earn it." / "Get seriously strong." / "Your first class is free." / "Stronger in 30 days or your money back." / "The gym that actually keeps you coming back." / "Built for people like you."
+  8. Bad: "More Than Just a Gym." (cliché/vague), "We Help You Achieve Your Fitness Goals" (boring, business-centric), stacked fragments.`;
 
 export interface DownloadedImage {
   assetUrl: string;
@@ -84,6 +129,9 @@ interface GmbFacts {
   gmb_rating?: number | null;
   gmb_review_count?: number | null;
   gmb_reviews?: { author: string; rating: number; text: string }[] | null;
+  gmb_place_id?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 interface BrandContext {
@@ -93,7 +141,7 @@ interface BrandContext {
   positioning?: string | null;
 }
 
-function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[], gmb?: GmbFacts, brand?: BrandContext): string {
+function buildPageUserMessage(page: ScrapedPage, siteName: string, images: DownloadedImage[], gmb?: GmbFacts, brand?: BrandContext, navLinks?: NavLink[]): string {
   const lines: string[] = [
     `Site: ${siteName}`,
     `Page: ${page.title || page.slug}`,
@@ -130,6 +178,15 @@ function buildPageUserMessage(page: ScrapedPage, siteName: string, images: Downl
     if (brand.positioning) lines.push(`  Positioning: ${brand.positioning}`);
     if (brand.primary_icp) lines.push(`  Primary audience: ${brand.primary_icp}`);
     if (brand.secondary_icp) lines.push(`  Secondary audience: ${brand.secondary_icp}`);
+    lines.push("");
+  }
+
+  // Original nav order — AI should preserve these labels and ordering
+  if (navLinks && navLinks.length > 0) {
+    lines.push("Original nav menu order (preserve these labels and sequence exactly):");
+    for (let i = 0; i < navLinks.length; i++) {
+      lines.push(`  ${i + 1}. "${navLinks[i].label}" → /${navLinks[i].slug}`);
+    }
     lines.push("");
   }
 
@@ -229,14 +286,16 @@ function sseWrite(reply: import("fastify").FastifyReply, event: string, data: un
 export interface BuildProgressPage {
   slug: string;
   label: string;
-  status: "pending" | "active" | "done";
+  status: "pending" | "active" | "done" | "error";
   blocks?: number;
+  error?: string;
 }
 
 interface BuildProgress {
   phase: "scraping" | "brand" | "building" | null;
   phase_label: string | null;
   pages: BuildProgressPage[];
+  started_at?: string; // ISO — used for stale build detection
 }
 
 async function writeBuildProgress(siteId: string, progress: BuildProgress): Promise<void> {
@@ -276,9 +335,9 @@ interface PageResult {
   costEventId: string | null;
 }
 
-export async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, brand?: BrandContext, siteId?: string): Promise<PageResult & { costEventId: string | null }> {
+export async function processPage(page: ScrapedPage, slug: string, siteName: string, images: DownloadedImage[], instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, brand?: BrandContext, siteId?: string, navLinks?: NavLink[]): Promise<PageResult & { costEventId: string | null }> {
   const toolSchema = buildPageToolSchema(instructions);
-  const userMessage = buildPageUserMessage(page, siteName, images, gmb, brand);
+  const userMessage = buildPageUserMessage(page, siteName, images, gmb, brand, navLinks);
   const model = "claude-sonnet-4-6";
   // Home page (index) can have many scraped sections → needs more output budget.
   // Inner pages are typically smaller; 6000 is a comfortable ceiling for both.
@@ -324,12 +383,15 @@ export async function processPage(page: ScrapedPage, slug: string, siteName: str
 
   const input = toolUse.input as Record<string, unknown>;
   const gaps = Array.isArray(input._gaps) ? (input._gaps as string[]) : [];
-  const sections = Array.isArray(input.sections) ? input.sections : [];
+  const sections = Array.isArray(input.sections) ? (input.sections as Record<string, unknown>[]) : [];
 
   // Guard: if the AI returned no sections for a page with real content, something went wrong
   if (sections.length === 0 && page.sections.length >= 3) {
     throw new Error(`AI returned 0 sections for "${page.title || slug}" which had ${page.sections.length} scraped sections — the response may have been malformed`);
   }
+
+  // Validation + auto-fix pass — catch common AI mistakes before spec is stored
+  const validatedSections = autoFixSections(sections, slug);
 
   return {
     slug,
@@ -337,9 +399,181 @@ export async function processPage(page: ScrapedPage, slug: string, siteName: str
     nav_label: input.nav_label ? String(input.nav_label) : undefined,
     nav_group: input.nav_group ? String(input.nav_group) : undefined,
     meta_description: String(input.meta_description ?? ""),
-    sections,
+    sections: validatedSections,
     gaps,
     costEventId,
+  };
+}
+
+/**
+ * Auto-fix common AI spec mistakes before storage.
+ * Mutates a copy — never throws. Issues are silent fixes, not hard errors.
+ */
+function autoFixSections(sections: Record<string, unknown>[], slug: string): Record<string, unknown>[] {
+  return sections.map(s => {
+    if (s.type !== "hero") return s;
+
+    const hero = { ...s } as Record<string, unknown>;
+    const bg = hero.background as { style?: string; value?: string } | undefined;
+    const hasImage = (bg?.style === "image" && bg.value) || hero.image_url || hero.background_video_url;
+
+    // Promote legacy "bg": "dark" field to the proper background object
+    if (!hasImage && hero.bg === "dark" && bg?.style !== "dark") {
+      hero.background = { style: "dark" };
+    }
+
+    // Hero with no background set at all: default to "dark" so white text is always readable.
+    // Only trigger when background is entirely absent — don't overwrite valid AI-set styles.
+    if (!hasImage && bg == null) {
+      hero.background = { style: "dark" };
+    }
+
+    // Homepage hero must have a CTA — add a sensible default if missing
+    if (slug === "index" && !hero.cta_primary) {
+      hero.cta_primary = { text: "Get started", url: "/get-started" };
+    }
+
+    return hero;
+  });
+}
+
+const GET_STARTED_SYSTEM_PROMPT = `You are an expert conversion designer building a lead capture page for a fitness business.
+
+This is a /get-started page — the PRIMARY conversion destination for the entire site. Every CTA button links here.
+
+Your goal: maximize lead form submissions from visitors who are interested but haven't committed yet.
+
+Page structure (use exactly this order):
+1. hero — Dark background. Short punchy headline about the free intro/trial session. Subheadline addresses the biggest fear (no experience needed, no pressure, no commitment). CTA primary goes to /get-started (same page anchor — leave as-is). NO image unless one is provided.
+2. features — "What to expect in 3 steps": Book your free intro → Meet your coach → Start your journey. Keep each description to 1 sentence. Use icon names like "calendar", "users", "trophy".
+3. contact-form — This is the actual lead capture. Headline: "Book your free intro session". Fields: name, email, phone. One sentence of reassurance under the headline.
+4. reviews — 2–3 short genuine reviews about the welcoming experience or results. Pull from provided Google reviews. Emphasize "first day" or "I was nervous" type reviews if available.
+5. cta-banner — Final nudge. Short headline, no subheadline needed.
+
+Rules:
+- Use {{business.name}}, {{business.phone}}, {{business.city}}, {{business.state}} tokens everywhere.
+- nav_label must be "Get started" (exactly).
+- This page is NOT in the nav dropdown — nav_label is used only for the CTA button.
+- Tone: warm, direct, zero pressure. This page talks to someone on the fence.
+- Do NOT include pricing, schedules, or program details — keep the focus entirely on taking the first step.`;
+
+export async function buildGetStartedPage(siteName: string, instructions: import("../lib/block-instructions.js").FetchedInstructions, gmb?: GmbFacts, brand?: BrandContext, siteId?: string): Promise<Omit<PageResult, "gaps" | "slug" | "nav_label" | "nav_group">> {
+  const toolSchema = buildPageToolSchema(instructions);
+
+  const lines: string[] = [
+    `Site: ${siteName}`,
+    `Page: Get Started (conversion lead capture page)`,
+    `URL: /get-started`,
+    "",
+    "Build a conversion-optimized /get-started page for this fitness business.",
+    "This page captures leads via a contact form. The visitor has seen the site and is interested but hasn't committed.",
+    "",
+  ];
+
+  if (gmb) {
+    lines.push("Verified business facts:");
+    if (gmb.biz_name) lines.push(`  Business name: ${gmb.biz_name}`);
+    if (gmb.city && gmb.state) lines.push(`  Location: ${gmb.city}, ${gmb.state}`);
+    if (gmb.phone) lines.push(`  Phone: ${gmb.phone}`);
+    if (gmb.gmb_rating != null) lines.push(`  Google rating: ${gmb.gmb_rating.toFixed(1)} stars`);
+    if (gmb.gmb_review_count != null) lines.push(`  Total reviews: ${gmb.gmb_review_count.toLocaleString()}`);
+    if (gmb.gmb_reviews?.length) {
+      lines.push("  Top reviews (pick the most welcoming/beginner-friendly ones for the reviews block):");
+      for (const r of gmb.gmb_reviews.slice(0, 5)) {
+        lines.push(`    ★ "${r.text.slice(0, 150)}"`);
+      }
+    }
+    lines.push("Use {{business.name}}, {{business.phone}}, {{business.city}}, {{business.state}} tokens.");
+    lines.push("");
+  }
+
+  if (brand && (brand.tone || brand.primary_icp || brand.positioning)) {
+    lines.push("Brand context:");
+    if (brand.tone) lines.push(`  Tone: ${brand.tone}`);
+    if (brand.positioning) lines.push(`  Positioning: ${brand.positioning}`);
+    if (brand.primary_icp) lines.push(`  Primary audience: ${brand.primary_icp}`);
+    lines.push("");
+  }
+
+  const userMessage = lines.join("\n");
+  const model = "claude-sonnet-4-6";
+  const msgs = [{ role: "user" as const, content: userMessage }];
+
+  const t0 = Date.now();
+  const msg = await anthropic.messages.create({
+    model,
+    max_tokens: 4000,
+    tools: [{
+      name: "create_page_spec",
+      description: "Creates the get-started lead capture page spec.",
+      input_schema: toolSchema as { type: "object"; properties: Record<string, unknown> },
+    }],
+    tool_choice: { type: "tool", name: "create_page_spec" },
+    system: GET_STARTED_SYSTEM_PROMPT,
+    messages: msgs,
+  }, { timeout: 90_000 });
+  const durationMs = Date.now() - t0;
+
+  const costEventId = await logAiCall({
+    siteId,
+    operation: "import_page",
+    model,
+    maxTokens: 4000,
+    systemPrompt: GET_STARTED_SYSTEM_PROMPT,
+    messages: msgs,
+    response: msg,
+    durationMs,
+  });
+
+  const toolUse = msg.content.find(c => c.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") throw new Error("AI did not return get-started spec");
+
+  const input = toolUse.input as Record<string, unknown>;
+  const sections = Array.isArray(input.sections) ? (input.sections as Record<string, unknown>[]) : [];
+  const fixed = autoFixSections(sections, "get-started");
+
+  return {
+    title: String(input.title ?? `Get Started — ${siteName}`),
+    meta_description: String(input.meta_description ?? `Start your fitness journey at {{business.name}}. Book your free intro session — no experience needed, no commitment required.`),
+    sections: fixed,
+    costEventId,
+  };
+}
+
+export function getStartedFallback(): { slug: string; title: string; nav_label: string; meta_description: string; sections: unknown[] } {
+  return {
+    slug: "get-started",
+    title: "Get Started — {{business.name}}",
+    nav_label: "Get started",
+    meta_description: "Start your fitness journey at {{business.name}} in {{business.city}}. Book a free intro session — no experience needed, no commitment required.",
+    sections: [
+      {
+        id: "gs-hero",
+        type: "hero",
+        background: { style: "dark" },
+        headline: "Your first class is free",
+        subheadline: "Come in, meet the coaches, and see if {{business.name}} is the right fit for you. No pressure. No commitment.",
+        cta_primary: { text: "Book your free intro", url: "#gs-form" },
+      },
+      {
+        id: "gs-steps",
+        type: "features",
+        bg: "muted",
+        headline: "Here's how it works",
+        items: [
+          { icon: "calendar", title: "Book your intro", description: "Fill out the form below and we'll reach out within 24 hours to schedule your free session." },
+          { icon: "users", title: "Meet the coaches", description: "Come in and see the facility. Our coaches will learn about your goals and show you around." },
+          { icon: "trophy", title: "Start your journey", description: "We'll build a plan around your goals and get you started — at whatever pace works for you." },
+        ],
+      },
+      {
+        id: "gs-form",
+        type: "contact-form",
+        headline: "Book your free intro session",
+        subheadline: "We'll reach out within 24 hours to confirm your spot. No commitment required.",
+        fields: ["name", "email", "phone"],
+      },
+    ],
   };
 }
 
@@ -375,7 +609,7 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     });
 
     // Track progress state for DB writes
-    const progress: BuildProgress = { phase: "scraping", phase_label: null, pages: [] };
+    const progress: BuildProgress = { phase: "scraping", phase_label: null, pages: [], started_at: new Date().toISOString() };
 
     // 1. Scrape — use cache if available (3-day TTL), unless force_crawl is set
     let scrape: ScrapeResult;
@@ -466,69 +700,121 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
 
     sseWrite(reply, "images_done", { count: downloadedImages.length, failed: totalImageTasks - downloadedImages.length });
 
-    // 4. Build each page individually so we can emit per-page progress
+    // 4. Filter scrape pages before building — remove junk, deduplicate SEO variants
+    const buildPages = filterBuildPages(scrape.pages);
+
+    // Build each page individually so we can emit per-page progress
     const instructions = await fetchInstructions();
 
     // Initialize page list in progress before AI starts
-    const pageLabels: string[] = scrape.pages.map((page, i) => {
+    const pageLabels: string[] = buildPages.map((page, i) => {
       const firstHeading = page.sections.find(s => s.heading)?.heading ?? "";
       const rawLabel = firstHeading || (page.title?.split(/[-|]/)[0] ?? `page-${i}`);
       return rawLabel.slice(0, 40).trim() || `page-${i}`;
     });
     progress.phase = "building";
-    progress.phase_label = `0 of ${scrape.pages.length}`;
-    progress.pages = scrape.pages.map((page, i) => ({
+    progress.phase_label = `0 of ${buildPages.length}`;
+    progress.pages = buildPages.map((page, i) => ({
       slug: i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`),
       label: pageLabels[i],
       status: "pending" as const,
     }));
     void writeBuildProgress(id, progress);
-    sseWrite(reply, "ai_start", { pages: scrape.pages.length });
+    sseWrite(reply, "ai_start", { pages: buildPages.length });
 
-    const pageResults: PageResult[] = [];
+    const pageResults: PageResult[] = new Array(buildPages.length);
     const allGaps: string[] = [];
 
-    for (let i = 0; i < scrape.pages.length; i++) {
-      const page = scrape.pages[i];
-      const slug = i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`);
-      const label = pageLabels[i];
+    // Prepare page tasks with stable slugs
+    const pageTasks = buildPages.map((page, i) => ({
+      page,
+      i,
+      slug: i === 0 ? "index" : sanitizeSlug(page.slug || `page-${i}`),
+      label: pageLabels[i],
+    }));
 
-      // Mark this page active in DB progress
-      progress.pages[i] = { ...progress.pages[i], slug, label, status: "active" };
-      progress.phase_label = `${i + 1} of ${scrape.pages.length}`;
-      void writeBuildProgress(id, progress);
-      sseWrite(reply, "ai_page_start", { slug, label, index: i, total: scrape.pages.length });
+    // Process pages in parallel batches — 3 concurrent keeps us well under API rate limits
+    const CONCURRENCY = 3;
+    for (let batchStart = 0; batchStart < pageTasks.length; batchStart += CONCURRENCY) {
+      const batch = pageTasks.slice(batchStart, batchStart + CONCURRENCY);
 
-      try {
-        // Send periodic heartbeats so the SSE connection stays alive during long AI calls
-        const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
-        let result: PageResult;
-        try {
-          result = await processPage(page, slug, scrape.site_name, downloadedImages, instructions, body.data.gmb_profile, brandKit ?? undefined, id);
-        } finally {
-          clearInterval(heartbeat);
-        }
-        pageResults.push(result);
-        allGaps.push(...result.gaps);
-
-        // Mark done in DB progress
-        const doneLabel = result.nav_label ?? label;
-        progress.pages[i] = { slug, label: doneLabel, status: "done", blocks: result.sections.length };
-        void writeBuildProgress(id, progress);
-        sseWrite(reply, "ai_page_done", { slug, label: doneLabel, blocks: result.sections.length, costEventId: result.costEventId });
-      } catch (err) {
-        const msg = (err as Error).message;
-        sseWrite(reply, "error", { message: msg });
-        await setBuildStatus(id, null, msg);
-        reply.raw.end();
-        return reply;
+      // Mark batch as active and emit start events
+      for (const { slug, label, i } of batch) {
+        progress.pages[i] = { ...progress.pages[i], slug, label, status: "active" };
+        sseWrite(reply, "ai_page_start", { slug, label, index: i, total: scrape.pages.length });
       }
+      progress.phase_label = `${Math.min(batchStart + CONCURRENCY, pageTasks.length)} of ${pageTasks.length}`;
+      void writeBuildProgress(id, progress);
+
+      const heartbeat = setInterval(() => sseWrite(reply, "heartbeat", {}), 15_000);
+      const batchSettled = await Promise.allSettled(
+        batch.map(({ page, slug }) =>
+          processPage(page, slug, scrape.site_name, downloadedImages, instructions, body.data.gmb_profile, brandKit ?? undefined, id, scrape.nav_links)
+        )
+      );
+      clearInterval(heartbeat);
+
+      // Record results and emit done/error events in batch order
+      for (let j = 0; j < batch.length; j++) {
+        const { slug, label, i } = batch[j];
+        const settled = batchSettled[j];
+
+        if (settled.status === "fulfilled") {
+          const result = settled.value;
+          pageResults[i] = result;
+          allGaps.push(...result.gaps);
+          const doneLabel = result.nav_label ?? label;
+          progress.pages[i] = { slug, label: doneLabel, status: "done", blocks: result.sections.length };
+          sseWrite(reply, "ai_page_done", { slug, label: doneLabel, blocks: result.sections.length, costEventId: result.costEventId });
+        } else {
+          // Page failed — insert a stub so the build can complete; it can be rebuilt individually
+          req.log.error({ err: settled.reason, slug, siteId: id }, "page AI build failed");
+          const errMsg = settled.reason instanceof Error ? settled.reason.message : String(settled.reason ?? "Unknown error");
+          pageResults[i] = {
+            slug,
+            title: label,
+            nav_label: label,
+            meta_description: "",
+            sections: [{ id: `stub-${slug}`, type: "rich-text", content: `<p><em>This page failed to build and needs to be rebuilt from the Pages tab.</em></p>` }],
+            gaps: [],
+            costEventId: null,
+          };
+          progress.pages[i] = { slug, label, status: "error", error: errMsg };
+          sseWrite(reply, "ai_page_error", { slug, label, error: errMsg });
+        }
+      }
+      void writeBuildProgress(id, progress);
     }
 
     // 3. Assemble + validate full spec
+    const builtPages = pageResults.map(({ gaps: _g, costEventId: _c, ...p }) => p);
+
+    // Always AI-build /get-started as a first-class conversion page.
+    // It's the canonical CTA destination — every site needs it regardless of scrape content.
+    if (!builtPages.some(p => p.slug === "get-started")) {
+      progress.pages.push({ slug: "get-started", label: "Get started", status: "active" });
+      sseWrite(reply, "ai_page_start", { slug: "get-started", label: "Get started", index: pageTasks.length, total: pageTasks.length + 1 });
+      void writeBuildProgress(id, progress);
+
+      try {
+        const gsResult = await buildGetStartedPage(scrape.site_name, instructions, body.data.gmb_profile, brandKit ?? undefined, id);
+        builtPages.push({ slug: "get-started", title: gsResult.title, nav_label: "Get started", meta_description: gsResult.meta_description, sections: gsResult.sections });
+        const lastIdx = progress.pages.length - 1;
+        progress.pages[lastIdx] = { slug: "get-started", label: "Get started", status: "done", blocks: gsResult.sections.length };
+        sseWrite(reply, "ai_page_done", { slug: "get-started", label: "Get started", blocks: gsResult.sections.length, costEventId: gsResult.costEventId });
+      } catch (err) {
+        req.log.error({ err, siteId: id }, "get-started AI build failed — using hardcoded fallback");
+        builtPages.push(getStartedFallback());
+        const lastIdx = progress.pages.length - 1;
+        progress.pages[lastIdx] = { slug: "get-started", label: "Get started", status: "done", blocks: 3 };
+        sseWrite(reply, "ai_page_done", { slug: "get-started", label: "Get started", blocks: 3, costEventId: null, fallback: true });
+      }
+      void writeBuildProgress(id, progress);
+    }
+
     const specData = {
       version: 1,
-      pages: pageResults.map(({ gaps: _g, costEventId: _c, ...p }) => p),
+      pages: builtPages,
     };
 
     const parsed = specSchema.safeParse(specData);
@@ -549,22 +835,15 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     // original font. Colors come from the brand kit.
     const theme = brandKit ? applyBrandKitToTheme(baseTheme, brandKit) : baseTheme;
 
-    // Auto-detect CTA: prefer conversion pages (drop-in, intro, trial, join), then contact
-    const CTA_SLUG_RE = /drop.?in|no.?sweat|intro|free.?trial|get.?started|join|start/i;
-    const ctaPage = parsed.data.pages.find(p => CTA_SLUG_RE.test(p.slug))
-      ?? parsed.data.pages.find(p => /^contact/.test(p.slug));
-    const detectedCtaUrl = ctaPage ? `/${ctaPage.slug}` : null;
-    const detectedCtaLabel = ctaPage?.nav_label ?? null;
-
     let updated;
     try {
       const now = new Date();
 
-      // Only write detected CTA if site doesn't already have a custom one set
+      // Every site has a canonical /get-started page — always set as CTA unless owner has overridden
       const existingSite = await db.selectFrom("sites").select(["cta_url", "cta_label"]).where("id", "=", id).executeTakeFirst();
       const ctaWrite = existingSite?.cta_url
         ? {} // owner has a custom CTA — don't overwrite
-        : { cta_url: detectedCtaUrl, cta_label: detectedCtaLabel };
+        : { cta_url: "/get-started", cta_label: "Get started" };
 
       updated = await db
         .updateTable("sites")
@@ -632,6 +911,9 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
           gmb_rating: p?.gmb_rating ?? null,
           gmb_review_count: p?.gmb_review_count ?? null,
           gmb_reviews: p?.gmb_reviews ? JSON.stringify(p.gmb_reviews) : null,
+          gmb_place_id: p?.gmb_place_id ?? null,
+          lat: p?.lat ?? null,
+          lng: p?.lng ?? null,
         };
         const existing = await db
           .selectFrom("business_profiles")
@@ -662,7 +944,8 @@ export const importRoutes: FastifyPluginAsync = async (app) => {
     const summary = {
       source_url: body.data.url,
       pages_scraped: scrape.pages.length,
-      sections_found: scrape.pages.reduce((n, p) => n + p.sections.length, 0),
+      pages_built: buildPages.length,
+      sections_found: buildPages.reduce((n, p) => n + p.sections.length, 0),
       pages_generated: parsed.data.pages.length,
       blocks_generated: parsed.data.pages.reduce((n, p) => n + p.sections.length, 0),
       gaps: [...new Set(allGaps)],

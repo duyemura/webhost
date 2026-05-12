@@ -48,10 +48,15 @@ export interface SiteSpec {
   pages: SitePage[];
 }
 
+export interface SiteCta {
+  url: string;
+  label: string;
+}
+
 export interface BlockDefinition {
   type: string;
   schema: z.ZodTypeAny;
-  render: (section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null) => string;
+  render: (section: Record<string, unknown>, theme: Theme, profile: BusinessProfile | null, siteCta?: SiteCta) => string;
   aiSchema: { type: string; fields: Record<string, string> };
   /** Writing/content rules injected into the AI prompt for this block type. */
   copyGuidelines?: string;

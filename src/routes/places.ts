@@ -38,6 +38,8 @@ export interface PlaceDetail extends PlaceSearchResult {
   country: string | null;
   hours: string | null;
   reviews: PlaceReview[];
+  lat: number | null;
+  lng: number | null;
 }
 
 function extractAddressComponent(components: unknown[], type: string): string | null {
@@ -143,6 +145,7 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
       "id", "displayName", "formattedAddress", "nationalPhoneNumber",
       "websiteUri", "types", "rating", "userRatingCount", "addressComponents",
       "regularOpeningHours.weekdayDescriptions",
+      "location",
       "reviews",
     ].join(",");
 
@@ -157,7 +160,9 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
     ]);
 
     if (!resRelevant.ok) {
-      return reply.internalServerError("Could not fetch place details");
+      const errBody = await resRelevant.text().catch(() => "(unreadable)");
+      app.log.error({ status: resRelevant.status, body: errBody, placeId: id }, "Google Places detail fetch failed");
+      return reply.internalServerError("Could not fetch place details from Google.");
     }
 
     const p = await resRelevant.json() as Record<string, unknown>;
@@ -188,6 +193,13 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
       ? (weekdayDescriptions as string[]).join("\n")
       : null;
 
+    const locationRaw = p.location as Record<string, unknown> | undefined;
+    const lat = typeof locationRaw?.latitude === "number" ? locationRaw.latitude : null;
+    const lng = typeof locationRaw?.longitude === "number" ? locationRaw.longitude : null;
+    if (locationRaw && (lat === null || lng === null)) {
+      app.log.warn({ placeId: id, locationRaw }, "places location object present but lat/lng missing or wrong type");
+    }
+
     const detail: PlaceDetail = {
       id: String(p.id ?? id),
       name: String((p.displayName as Record<string, unknown>)?.text ?? ""),
@@ -204,6 +216,8 @@ export const placesRoutes: FastifyPluginAsync = async (app) => {
       country: extractAddressComponent(components, "country"),
       hours,
       reviews,
+      lat,
+      lng,
     };
 
     // Two detail calls (relevant + newest) = 2× cost, but newest may have failed

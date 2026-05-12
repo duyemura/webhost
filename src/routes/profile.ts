@@ -14,6 +14,11 @@ const upsertSchema = z.object({
   country: z.string().max(10).optional(),
   website_url: z.string().max(500).nullable().optional(),
   hours: z.string().max(500).nullable().optional(),
+  gmb_place_id: z.string().max(200).nullable().optional(),
+  gmb_rating: z.number().nullable().optional(),
+  gmb_review_count: z.number().int().nullable().optional(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 });
 
 export const profileRoutes: FastifyPluginAsync = async (app) => {

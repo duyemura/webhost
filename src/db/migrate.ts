@@ -208,6 +208,11 @@ const sql = `
   -- Phase 13: Site-level CTA configuration
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS cta_label TEXT;
   ALTER TABLE sites ADD COLUMN IF NOT EXISTS cta_url   TEXT;
+
+  -- Phase 14: GMB location data for map centering
+  ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS gmb_place_id TEXT;
+  ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS lat NUMERIC(10, 7);
+  ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS lng NUMERIC(10, 7);
 `;
 
 const client = new pg.Client(config.db);

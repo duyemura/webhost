@@ -34,14 +34,16 @@ export const DEFAULT_BRAND_KIT: BrandKit = {
 export interface BuildProgressPage {
   slug: string;
   label: string;
-  status: "pending" | "active" | "done";
+  status: "pending" | "active" | "done" | "error";
   blocks?: number;
+  error?: string;
 }
 
 export interface BuildProgress {
   phase: "scraping" | "brand" | "building" | null;
   phase_label: string | null;
   pages: BuildProgressPage[];
+  started_at?: string;
 }
 
 export interface Site {
@@ -209,14 +211,80 @@ export const THEME_PRESET_DESCRIPTIONS: Record<ThemePreset, string> = {
 export const generateSite = (siteId: string, body: { prompt: string; theme_preset?: string }) =>
   apiFetch<Site>(`/sites/${siteId}/generate`, { method: "POST", body: JSON.stringify(body) });
 
-export const rebuildPage = (siteId: string, slug: string) =>
-  apiFetch<Site>(`/sites/${siteId}/pages/${slug}/rebuild`, { method: "POST" });
+export async function rebuildPageStream(
+  siteId: string,
+  slug: string,
+  onStatus: (msg: string) => void,
+): Promise<Site> {
+  const token = getToken();
+  const res = await fetch(`/api/sites/${siteId}/pages/${slug}/rebuild`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error("Unauthorized");
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text;
+    try { message = (JSON.parse(text) as { message?: string })?.message ?? text; } catch { /* use raw text */ }
+    throw new Error(message);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let site: Site | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+
+    for (const part of parts) {
+      const eventLine = part.match(/^event: (.+)$/m)?.[1];
+      const dataLine = part.match(/^data: (.+)$/m)?.[1];
+      if (!eventLine || !dataLine) continue;
+      let data: Record<string, unknown>;
+      try { data = JSON.parse(dataLine) as Record<string, unknown>; } catch { continue; }
+
+      if (eventLine === "scraping") {
+        const hostname = data.hostname as string | null;
+        onStatus(hostname ? `Re-scraping ${hostname}…` : "Preparing page…");
+      } else if (eventLine === "scrape_done") {
+        const sections = data.sections as number;
+        const images = data.images as number;
+        onStatus(`Found ${sections} section${sections !== 1 ? "s" : ""}, ${images} image${images !== 1 ? "s" : ""}`);
+      } else if (eventLine === "downloading") {
+        const count = data.count as number;
+        onStatus(`Downloading ${count} new image${count !== 1 ? "s" : ""}…`);
+      } else if (eventLine === "building") {
+        onStatus("Building page with AI…");
+      } else if (eventLine === "done") {
+        site = data.site as Site;
+      } else if (eventLine === "error") {
+        throw new Error(data.message as string);
+      }
+    }
+  }
+
+  if (!site) throw new Error("Rebuild did not return a result.");
+  return site;
+}
 
 export const aiEditPage = (siteId: string, slug: string, instruction: string) =>
   apiFetch<Site>(`/sites/${siteId}/pages/${slug}/ai-edit`, {
     method: "POST",
     body: JSON.stringify({ instruction }),
   });
+
+export const recoverBuild = (siteId: string) =>
+  apiFetch<Site & { recovered: string[]; failed: string[] }>(`/sites/${siteId}/build/recover`, { method: "POST" });
 
 export interface ImportSummary {
   source_url: string;
@@ -250,6 +318,11 @@ export interface BusinessProfile {
   country?: string;
   website_url?: string | null;
   hours?: string | null;
+  gmb_place_id?: string | null;
+  gmb_rating?: number | null;
+  gmb_review_count?: number | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export const getProfile = (siteId: string) =>
@@ -383,6 +456,8 @@ export interface PlaceDetail extends PlaceSearchResult {
   country: string | null;
   hours: string | null;
   reviews: PlaceReview[];
+  lat: number | null;
+  lng: number | null;
 }
 
 export const searchPlaces = (q: string) =>
